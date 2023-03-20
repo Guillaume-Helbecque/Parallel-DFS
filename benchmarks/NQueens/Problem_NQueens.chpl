@@ -1,6 +1,7 @@
 module Problem_NQueens
 {
-  use aux;
+  /* use aux; */
+  use GPU;
   use List;
   use Time;
   use CTypes;
@@ -23,18 +24,21 @@ module Problem_NQueens
 
     proc isSafe(const board: c_ptr(c_int), const queen_num: int, const row_pos: c_int): bool
     {
+      var res = true;
+
       // For each queen before this one
-      for i in 0..#queen_num {
+      foreach i in 0..#queen_num {
         // Get the row position
         const other_row_pos: c_int = board[i];
 
         // Check diagonals
         if (other_row_pos == row_pos - (queen_num - i) ||
             other_row_pos == row_pos + (queen_num - i)) {
-          return false;
+          res = false;
+//          break;
         }
       }
-      return true;
+      return res;
     }
 
     override proc decompose(type Node, const parent: Node, ref tree_loc: int, ref num_sol: int,
@@ -47,10 +51,14 @@ module Problem_NQueens
       if (depth == this.N) { // All queens are placed
         num_sol += 1;
       }
-      for j in depth..this.N-1 {
+      foreach j in depth..this.N-1 {
+        /* assertOnGpu(); */
         if isSafe(parent.board, depth, parent.board[j]) {
           var child = new Node(parent);
-          swap(child.board[depth], child.board[j]);
+          //swap(child.board[depth], child.board[j]);
+          var tmp = child.board[depth];
+          child.board[depth] = child.board[j];
+          child.board[j] = tmp;
           child.depth += 1;
           childList.append(child);
           tree_loc += 1;

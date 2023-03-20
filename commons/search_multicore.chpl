@@ -1,5 +1,6 @@
 module search_multicore
 {
+  use GPU;
   use List;
   use Time;
   use CTypes;
@@ -138,7 +139,14 @@ module search_multicore
 
         // Decompose an element
         {
-          var children = problem.decompose(Node, parent, tree_loc, num_sol, best, best_task);
+          var children: list(Node);
+
+          /* writeln("here ", here);
+          writeln("here.gpus[0]= ", here.gpus[0]);
+          on here.gpus[0] {
+            writeln("hello from ", here); */
+            children = problem.decompose(Node, parent, tree_loc, num_sol, best, best_task);
+          /* } */
 
           bag.addBulk(children, tid);
         }
@@ -164,7 +172,7 @@ module search_multicore
 
     if saveTime {
       var path = problem.output_filepath();
-      save_time(numTasks:c_int, globalTimer.elapsed(TimeUnits.seconds):c_double, path.c_str());
+      /* save_time(numTasks:c_int, globalTimer.elapsed(TimeUnits.seconds):c_double, path.c_str()); */
     }
 
     problem.print_results(eachLocalExploredTree, eachLocalExploredSol, eachMaxDepth, best.read(), globalTimer);

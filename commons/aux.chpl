@@ -5,7 +5,8 @@ module aux
 
   const BUSY: bool = false;
 
-  require "c_sources/aux.c", "c_headers/aux.h";
+  // We use aux.o instead of aux.c to avoid Chapel's issue #21905.
+  require "c_sources/aux.o", "c_headers/aux.h";
   extern proc swap(ref a: c_int, ref b: c_int): void;
 	extern proc save_time(numTasks: c_int, time: c_double, path: c_string): void;
 
