@@ -1,12 +1,12 @@
 module Node_NQueens
 {
+  use CTypes;
+
   /*
     Maximum size of the problem. The exact number of N-Queens solutions is only
     known for N < 28.
   */
   config param NMax: int = 27;
-
-  use CTypes;
 
   record Node_NQueens
   {

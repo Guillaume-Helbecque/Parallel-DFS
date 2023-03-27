@@ -21,7 +21,7 @@ all: main_pfsp.o main_uts.o main_nqueens.o main_knapsack.o
 # ==========
 
 CHPL_PFSP_MODULES_DIR = ./benchmarks/PFSP
-CHPL_PFSP_OPTS = -M $(CHPL_PFSP_MODULES_DIR) -M $(CHPL_PFSP_MODULES_DIR)/instances
+CHPL_PFSP_OPTS = -M $(CHPL_PFSP_MODULES_DIR) -M $(CHPL_PFSP_MODULES_DIR)/instances -suseNewArrayFind
 
 main_pfsp.o: main_pfsp.chpl
 	$(COMPILER) $(CHPL_COMMON_OPTS) $(CHPL_PFSP_OPTS) main_pfsp.chpl -o main_pfsp.o

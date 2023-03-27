@@ -15,12 +15,6 @@ module Problem
       halt("Error - decompose() not implemented");
     }
 
-    // for debugging
-    proc print_thing(): void
-    {
-      halt("Error - print_thing() not implemented");
-    }
-
     proc setInitUB(): int
     {
       halt("Error - setInitUB() not implemented");

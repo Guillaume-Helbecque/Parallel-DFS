@@ -61,7 +61,7 @@ module aux
   proc save_tables(const path: string, const table: [] real): void
   {
     try! {
-      var f: file = open(path, iomode.cw);
+      var f: file = open(path, ioMode.cw);
       var channel = f.writer();
       channel.write(table);
       channel.close();

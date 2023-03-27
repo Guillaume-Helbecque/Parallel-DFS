@@ -157,7 +157,7 @@ module Problem_UTS
       /* writeln("Number of explored solutions per locale: ", numSolPerLocale); */
       writeln("Tree depth: ", maxDepth);
       /* writeln("Optimal makespan: ", best); */
-      writeln("Elapsed time: ", timer.elapsed(TimeUnits.seconds), " [s]");
+      writeln("Elapsed time: ", timer.elapsed(), " [s]");
       writeln("=================================\n");
     }
 

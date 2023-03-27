@@ -20,7 +20,6 @@ int taillard_get_nb_machines(const int id);
 long unif(long * seed, long low, long high);
 
 void taillard_get_processing_times(int ptm[], const int id);
-// void taillard_get_processing_times(bound_data *d, const int id)
 
 void taillard_get_instance_data(int *ptm, int *N, int *M, const int id);
 

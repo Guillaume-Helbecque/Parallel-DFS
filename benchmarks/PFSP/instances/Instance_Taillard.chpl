@@ -1,6 +1,11 @@
 use CTypes;
 use Instance;
-use Header_chpl_c_PFSP;
+
+require "../c_sources/c_taillard.c", "../c_headers/c_taillard.h";
+
+extern proc taillard_get_nb_jobs(const inst_id: c_int): c_int;
+extern proc taillard_get_nb_machines(const inst_id: c_int): c_int;
+extern proc taillard_get_processing_times(data: c_ptr(c_int), const id: c_int): void;
 
 class Instance_Taillard : Instance
 {
@@ -24,9 +29,9 @@ class Instance_Taillard : Instance
     return taillard_get_nb_machines(this.id);
   }
 
-  override proc get_data(lbd1: c_ptr(bound_data))
+  override proc get_data(d: c_ptr(c_int))
   {
-    taillard_get_processing_times_d(lbd1, this.id);
+    taillard_get_processing_times(d, this.id);
   }
 
   override proc get_ub()

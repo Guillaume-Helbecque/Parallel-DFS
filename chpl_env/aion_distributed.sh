@@ -12,7 +12,7 @@
 # Load the foss toolchain to get access to gcc, mpi, etc...
 module load toolchain/foss/2020b
 
-export CHPL_VERSION="1.29.0"
+export CHPL_VERSION="1.30.0"
 export CHPL_HOME="${PWD}/chapel-${CHPL_VERSION}"
 
 CHPL_BIN_SUBDIR=`"$CHPL_HOME"/util/chplenv/chpl_bin_subdir.py`

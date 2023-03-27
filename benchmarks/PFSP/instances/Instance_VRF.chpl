@@ -16,7 +16,7 @@ class Instance_VRF : Instance
     var tup = ("./benchmarks/PFSP/instances/data_VRF/", fileName);
     var path = "".join(tup);
 
-    var f = open(path, iomode.r);
+    var f = open(path, ioMode.r);
     var channel = f.reader();
 
     this.jobs = channel.read(c_int);
@@ -45,9 +45,9 @@ class Instance_VRF : Instance
     return this.machines;
   }
 
-  override proc get_data(lbd1: c_ptr(bound_data))
+  override proc get_data(d: c_ptr(c_int))
   {
-    for i in 0..#this.jobs*this.machines do lbd1.deref().p_times[i] = this.data[i];
+    for i in 0..#this.jobs*this.machines do d[i] = this.data[i];
   }
 
   override proc get_ub(): int
@@ -55,7 +55,7 @@ class Instance_VRF : Instance
     var tup = ("./benchmarks/PFSP/instances/data_VRF/VFR_upper_lower_bounds.txt");
     var path = "".join(tup);
 
-    var f = open(path, iomode.r);
+    var f = open(path, ioMode.r);
     var channel = f.reader();
 
     var file = channel.read([0..240, 0..2] string);
@@ -63,6 +63,6 @@ class Instance_VRF : Instance
     channel.close();
     f.close();
 
-    return file[file.find((splitExt(this.name)[0]))[1][0], 1]:int;
+    return file[file.find(splitExt(this.name)[0])]:int;
   }
 }

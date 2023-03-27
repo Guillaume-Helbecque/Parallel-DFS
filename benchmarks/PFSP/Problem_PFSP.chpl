@@ -6,6 +6,7 @@ module Problem_PFSP
   use CTypes;
 
   use Problem;
+  use Instances;
   use Header_chpl_c_PFSP;
 
   use Instance;
@@ -41,7 +42,7 @@ module Problem_PFSP
       else halt("Error - Unsupported lower bound");
 
       this.lbound1 = new_bound_data(jobs, machines);
-      inst.get_data(lbound1);
+      inst.get_data(lbound1.deref().p_times);
       fill_min_heads_tails(lbound1);
 
       if (lb == "lb2"){
@@ -255,7 +256,7 @@ module Problem_PFSP
       writeln("Number of explored solutions: ", nbSol);
       /* writeln("Number of explored solutions per locale: ", numSolPerLocale); */
       writeln("Optimal makespan: ", best);
-      writeln("Elapsed time: ", timer.elapsed(TimeUnits.seconds), " [s]");
+      writeln("Elapsed time: ", timer.elapsed(), " [s]");
       writeln("=================================================\n");
     }
 

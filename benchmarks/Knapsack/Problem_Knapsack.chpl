@@ -22,7 +22,7 @@ class Problem_Knapsack : Problem
     var tup = ("./benchmarks/Knapsack/instances/", fileName);
     var path = "".join(tup);
 
-    var f = open(path, iomode.r);
+    var f = open(path, ioMode.r);
     var channel = f.reader();
 
     this.N = channel.read(int);
@@ -118,7 +118,7 @@ class Problem_Knapsack : Problem
     writeln("% of the explored tree per ", par_mode, ": ", 100 * subNodeExplored:real / treeSize:real);
     writeln("Number of explored solutions: ", nbSol);
     /* writeln("Number of explored solutions per locale: ", numSolPerLocale); */
-    writeln("Elapsed time: ", timer.elapsed(TimeUnits.seconds), " [s]");
+    writeln("Elapsed time: ", timer.elapsed(), " [s]");
     writeln("=================================================\n");
   }
 

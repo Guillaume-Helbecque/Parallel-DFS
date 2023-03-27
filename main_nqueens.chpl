@@ -4,7 +4,6 @@ module main_queens
   use CTypes;
 
   use aux;
-  use Problem;
   use search_multicore;
   use search_distributed;
 
