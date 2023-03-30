@@ -27,7 +27,7 @@ module Problem_NQueens
       var res = true;
 
       // For each queen before this one
-      foreach i in 0..#queen_num {
+      for i in 0..#queen_num {
         // Get the row position
         const other_row_pos: c_int = board[i];
 
@@ -66,6 +66,39 @@ module Problem_NQueens
       }
 
       return childList;
+    }
+
+    proc decompose_gpu(type Node, const nufNodes: [] Node, ref tree_loc: int, ref num_sol: int,
+      best: atomic int, ref best_task: int): [] Node
+    {
+      var c: int;
+      var D: domain(int);
+      var children: [D] Node;
+
+      forall parent in bufNodes with (ref num_sol, ref tree_loc, ref D, ref c) {
+        assertOnGpu();
+
+        const depth: int = parent.depth;
+
+        if (depth == this.N) { // All queens are placed
+          num_sol += 1;
+        }
+        for j in depth..this.N-1 {
+          if isSafe(parent.board, depth, parent.board[j]) {
+            var child = new Node(parent);
+            //swap(child.board[depth], child.board[j]);
+            var tmp = child.board[depth];
+            child.board[depth] = child.board[j];
+            child.board[j] = tmp;
+            child.depth += 1;
+            D.add(c);
+            children[c] = child;
+            tree_loc += 1;
+          }
+        }
+      }
+
+      return children;
     }
 
     // No bounding in NQueens

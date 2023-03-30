@@ -139,16 +139,12 @@ module search_multicore
 
         // Decompose an element
         {
-          var children: list(Node);
+          var wrap: [0..0] Node;
+          wrap[0] = parent;
 
-          /* writeln("here ", here);
-          writeln("here.gpus[0]= ", here.gpus[0]);
           on here.gpus[0] {
-            writeln("hello from ", here); */
-            children = problem.decompose(Node, parent, tree_loc, num_sol, best, best_task);
-          /* } */
-
-          bag.addBulk(children, tid);
+            bag.addBulk(problem.decompose_gpu(Node, parent, tree_loc, num_sol, best, best_task), tid);
+          }
         }
 
         // Read the best solution found so far
