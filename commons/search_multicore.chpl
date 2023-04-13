@@ -91,68 +91,72 @@ module search_multicore
     // =====================
 
     coforall tid in 0..#numTasks {
+      coforall gpu in here.gpus with (const ref problem) do on gpu {
 
-      // Task variables (best solution found)
-      var best_task: int = best.read();
-      var taskState: bool = false;
-      ref tree_loc = eachLocalExploredTree[tid];
-      ref num_sol = eachLocalExploredSol[tid];
+        var problem_loc = problem.copy();
 
-      // Counters and timers (for analysis)
-      var count: int = 0;
+        // Task variables (best solution found)
+        var best_task: int = best.read();
+        var taskState: bool = false;
+        ref tree_loc = eachLocalExploredTree[tid];
+        ref num_sol = eachLocalExploredSol[tid];
 
-      // Exploration of the tree
-      while true do {
+        // Counters and timers (for analysis)
+        var count: int = 0;
 
-        // Try to remove an element
-        var (hasWork, parent): (int, Node) = bag.remove(tid);
+        // Exploration of the tree
+        while true do {
 
-        /*
-          Check (or not) the termination condition regarding the value of 'hasWork':
-            'hasWork' = -1 : remove() fails              -> check termination
-            'hasWork' =  0 : remove() prematurely fails  -> continue
-            'hasWork' =  1 : remove() succeeds           -> decompose
-        */
-        if (hasWork == 1){
-          if taskState {
-            taskState = false;
-            eachTaskState[tid].write(BUSY);
+          // Try to remove an element
+          var (hasWork, parent): (int, Node) = bag.remove(tid);
+
+          /*
+            Check (or not) the termination condition regarding the value of 'hasWork':
+              'hasWork' = -1 : remove() fails              -> check termination
+              'hasWork' =  0 : remove() prematurely fails  -> continue
+              'hasWork' =  1 : remove() succeeds           -> decompose
+          */
+          if (hasWork == 1) {
+            if taskState {
+              taskState = false;
+              eachTaskState[tid].write(BUSY);
+            }
           }
-        }
-        else if (hasWork == 0){
-          if !taskState {
-            taskState = true;
-            eachTaskState[tid].write(IDLE);
+          else if (hasWork == 0) {
+            if !taskState {
+              taskState = true;
+              eachTaskState[tid].write(IDLE);
+            }
+            continue;
           }
-          continue;
-        }
-        else {
-          if !taskState {
-            taskState = true;
-            eachTaskState[tid].write(IDLE);
+          else {
+            if !taskState {
+              taskState = true;
+              eachTaskState[tid].write(IDLE);
+            }
+            if allIdle(eachTaskState, allTasksIdleFlag) {
+              break;
+            }
+            continue;
           }
-          if allIdle(eachTaskState, allTasksIdleFlag){
-            break;
+
+          // Decompose an element
+          {
+            var wrap: [0..0] Node;
+            wrap[0] = parent;
+
+            var children = problem.decompose_gpu(Node, wrap, tree_loc, num_sol, best, best_task);
+
+            bag.addBulk(children, tid);
           }
-          continue;
-        }
 
-        // Decompose an element
-        {
-          var wrap: [0..0] Node;
-          wrap[0] = parent;
-
-          on here.gpus[0] {
-            bag.addBulk(problem.decompose_gpu(Node, parent, tree_loc, num_sol, best, best_task), tid);
+          // Read the best solution found so far
+          if (tid == 0) {
+            count += 1;
+            if (count % 10000 == 0) then best_task = best.read();
           }
-        }
 
-        // Read the best solution found so far
-        if (tid == 0){
-          count += 1;
-          if (count % 10000 == 0) then best_task = best.read();
         }
-
       }
     }
 

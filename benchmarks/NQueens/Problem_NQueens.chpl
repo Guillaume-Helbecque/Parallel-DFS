@@ -24,8 +24,6 @@ module Problem_NQueens
 
     proc isSafe(const board: c_ptr(c_int), const queen_num: int, const row_pos: c_int): bool
     {
-      var res = true;
-
       // For each queen before this one
       for i in 0..#queen_num {
         // Get the row position
@@ -34,11 +32,11 @@ module Problem_NQueens
         // Check diagonals
         if (other_row_pos == row_pos - (queen_num - i) ||
             other_row_pos == row_pos + (queen_num - i)) {
-          res = false;
-//          break;
+          return false;
         }
       }
-      return res;
+
+      return true;
     }
 
     override proc decompose(type Node, const parent: Node, ref tree_loc: int, ref num_sol: int,
@@ -51,8 +49,7 @@ module Problem_NQueens
       if (depth == this.N) { // All queens are placed
         num_sol += 1;
       }
-      foreach j in depth..this.N-1 {
-        /* assertOnGpu(); */
+      for j in depth..this.N-1 {
         if isSafe(parent.board, depth, parent.board[j]) {
           var child = new Node(parent);
           //swap(child.board[depth], child.board[j]);
@@ -68,14 +65,12 @@ module Problem_NQueens
       return childList;
     }
 
-    proc decompose_gpu(type Node, const nufNodes: [] Node, ref tree_loc: int, ref num_sol: int,
+    proc decompose_gpu(type Node, const bufNodes: [] Node, ref tree_loc: int, ref num_sol: int,
       best: atomic int, ref best_task: int): [] Node
     {
-      var c: int;
-      var D: domain(int);
-      var children: [D] Node;
+      var children: [0..#this.N] Node;
 
-      forall parent in bufNodes with (ref num_sol, ref tree_loc, ref D, ref c) {
+      forall parent in bufNodes with (ref num_sol, ref tree_loc) {
         assertOnGpu();
 
         const depth: int = parent.depth;
@@ -84,21 +79,54 @@ module Problem_NQueens
           num_sol += 1;
         }
         for j in depth..this.N-1 {
-          if isSafe(parent.board, depth, parent.board[j]) {
-            var child = new Node(parent);
+          // Check queen's safety
+          var res = true;
+
+          for i in 0..#depth {
+            const other_row_pos: c_int = parent.board[i];
+
+            if (other_row_pos == parent.board[j] - (depth - i) ||
+                other_row_pos == parent.board[j] + (depth - i)) {
+              res = false;
+            }
+          }
+
+          // Generate children if any
+          ref child = children[j];
+
+          if res {
+            for i in 0..#27 do child.board[i] = parent.board[i]; ////////////////////////////////////////
+            child.depth = parent.depth;
             //swap(child.board[depth], child.board[j]);
             var tmp = child.board[depth];
             child.board[depth] = child.board[j];
             child.board[j] = tmp;
             child.depth += 1;
-            D.add(c);
-            children[c] = child;
             tree_loc += 1;
           }
         }
       }
 
-      return children;
+      var r: [0..#this.N] int = -1;
+      var c1: int = -1;
+      for i in r.domain {
+        if (children[i].depth != 0) {
+          c1 += 1;
+          r[i] = i;
+        }
+      }
+      var children_true: [0..c1] Node;
+      if (c1 != -1) {
+        var c2: int;
+        for i in r.domain {
+          if (r[i] != -1) {
+            children_true[c2] = children[i];
+            c2 += 1;
+          }
+        }
+      }
+
+      return children_true;
     }
 
     // No bounding in NQueens
