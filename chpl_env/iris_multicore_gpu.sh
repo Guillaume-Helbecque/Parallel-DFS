@@ -1,7 +1,7 @@
 #!/bin/bash -l
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=128
+#SBATCH --cpus-per-task=1
 #SBATCH --time=01:00:00
 #SBATCH --exclusive
 #SBATCH -p gpu
@@ -31,7 +31,7 @@ export GASNET_PHYSMEM_MAX='64 GB'
 
 # if Chapel's directory not found, download it.
 if [ ! -d "$CHPL_HOME" ]; then
-    module load devel/CMake
+    module load devel/CMake/3.20.1-GCCcore-10.2.0
     wget -c https://github.com/chapel-lang/chapel/releases/download/${CHPL_VERSION}/chapel-${CHPL_VERSION}.tar.gz -O - | tar xz
     cd chapel-${CHPL_VERSION}
     make -j ${SLURM_CPUS_PER_TASK}

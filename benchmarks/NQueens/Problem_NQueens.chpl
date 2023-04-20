@@ -65,20 +65,23 @@ module Problem_NQueens
       return childList;
     }
 
-    proc decompose_gpu(type Node, const bufNodes: [] Node, ref tree_loc: int, ref num_sol: int,
+    proc decompose_gpu(type Node, const bufNodes: [] Node, ref metricg: [0..1] int,
       best: atomic int, ref best_task: int): [] Node
     {
-      var children: [0..#this.N] Node;
+      var bufSize: int = bufNodes.size;
+      var NN = this.N;
+      var children: [0..#NN*bufSize] Node;
 
-      forall parent in bufNodes with (ref num_sol, ref tree_loc) {
+      forall pid in bufNodes.domain with (ref metricg) {
         assertOnGpu();
 
+        const parent = bufNodes[pid];
         const depth: int = parent.depth;
 
-        if (depth == this.N) { // All queens are placed
-          num_sol += 1;
+        if (depth == NN) { // All queens are placed
+          metricg[1] += 1;
         }
-        for j in depth..this.N-1 {
+        for j in depth..NN-1 {
           // Check queen's safety
           var res = true;
 
@@ -92,35 +95,31 @@ module Problem_NQueens
           }
 
           // Generate children if any
-          ref child = children[j];
+          ref child = children[j + pid * bufSize];
 
           if res {
-            for i in 0..#27 do child.board[i] = parent.board[i]; ////////////////////////////////////////
+            for i in 0..#NN do child.board[i] = parent.board[i]; ////////////////////////////////////////
             child.depth = parent.depth;
             //swap(child.board[depth], child.board[j]);
             var tmp = child.board[depth];
             child.board[depth] = child.board[j];
             child.board[j] = tmp;
             child.depth += 1;
-            tree_loc += 1;
+            metricg[0] += 1;
           }
         }
       }
 
-      var r: [0..#this.N] int = -1;
       var c1: int = -1;
-      for i in r.domain {
-        if (children[i].depth != 0) {
-          c1 += 1;
-          r[i] = i;
-        }
+      for child in children {
+        if child.depth then c1 += 1;
       }
       var children_true: [0..c1] Node;
       if (c1 != -1) {
         var c2: int;
-        for i in r.domain {
-          if (r[i] != -1) {
-            children_true[c2] = children[i];
+        for child in children {
+          if child.depth {
+            children_true[c2] = child;
             c2 += 1;
           }
         }
