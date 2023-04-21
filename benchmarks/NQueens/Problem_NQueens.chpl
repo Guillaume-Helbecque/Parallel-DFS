@@ -95,20 +95,19 @@ module Problem_NQueens
           }
 
           // Generate children if any
-          ref child = children[j + pid * bufSize];
+          ref child = children[j + pid * NN];
 
           if res {
             for i in 0..#NN do child.board[i] = parent.board[i]; ////////////////////////////////////////
-            child.depth = parent.depth;
+            child.depth = parent.depth + 1;
             //swap(child.board[depth], child.board[j]);
             var tmp = child.board[depth];
             child.board[depth] = child.board[j];
             child.board[j] = tmp;
-            child.depth += 1;
             metricg[0] += 1;
           }
         }
-      }
+      } // end GPU-loop
 
       var c1: int = -1;
       for child in children {

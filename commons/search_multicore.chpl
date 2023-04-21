@@ -94,8 +94,6 @@ module search_multicore
       /* ref tree_loc = eachLocalExploredTree[tid];
       ref num_sol = eachLocalExploredSol[tid]; */
 
-      var problem_loc = problem.copy();
-
       // Task variables (best solution found)
       var best_task: int = best.read();
       var taskState: bool = false;
@@ -148,7 +146,7 @@ module search_multicore
         }
 
         var size = bag.bag!.segments[tid].nElems;
-        if (size >= 21) {
+        if (size >= 5) {
 
           coforall gpu in here.gpus with (const ref problem, ref best_task/*, ref tree_loc, ref num_sol*/) do on gpu {
 
@@ -159,21 +157,16 @@ module search_multicore
               wrap[i] = bag.remove(tid)[1];
             }
 
-            for k in 0..#size-1 {
+            /* for k in 0..#size-1 {
               var wrap2: [0..0] Node;
-              wrap2[0] = wrap[k];
-              var children = problem.decompose_gpu(Node, wrap2, metricg, best, best_task);
+              wrap2[0] = wrap[k]; */
+              var children = problem.decompose_gpu(Node, wrap, metricg, best, best_task);
               bag.addBulk(children, tid);
-            }
-            writeln(metricg);
+            /* } */
             eachLocalExploredTree[tid] += metricg[0];
             eachLocalExploredSol[tid] += metricg[1];
-          }
+          } // coforall gpus
         }
-
-        writeln(eachLocalExploredTree);
-
-        writeln("hasWork ", hasWork, " and seg ", bag.bag!.segments[tid].nElems);
 
         // Read the best solution found so far
         if (tid == 0) {
