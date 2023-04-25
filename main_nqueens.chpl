@@ -18,11 +18,12 @@ module main_queens
 
   // NQueens-specific option
   config const N: int = 13;
+  config const g: int = 1;
 
   proc main(args: [] string): int
   {
     // Initialization of the problem
-    var nqueens = new Problem_NQueens(N);
+    var nqueens = new Problem_NQueens(N, g);
 
     // Helper
     for a in args[1..] {

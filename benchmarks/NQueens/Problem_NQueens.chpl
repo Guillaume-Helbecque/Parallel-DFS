@@ -11,28 +11,32 @@ module Problem_NQueens
   class Problem_NQueens : Problem
   {
     var N: int; // size of the problem (number of queens)
+    var g: int; // number of safety check(s) per evaluation
 
-    proc init(const n: int): void
+    proc init(const n: int, const G: int): void
     {
       this.N = n;
+      this.g = G;
     }
 
     override proc copy()
     {
-      return new Problem_NQueens(this.N);
+      return new Problem_NQueens(this.N, this.g);
     }
 
     proc isSafe(const board: c_ptr(c_int), const queen_num: int, const row_pos: c_int): bool
     {
-      // For each queen before this one
-      for i in 0..#queen_num {
-        // Get the row position
-        const other_row_pos: c_int = board[i];
+      for gran in 0..#this.g {
+        // For each queen before this one
+        for i in 0..#queen_num {
+          // Get the row position
+          const other_row_pos: c_int = board[i];
 
-        // Check diagonals
-        if (other_row_pos == row_pos - (queen_num - i) ||
-            other_row_pos == row_pos + (queen_num - i)) {
-          return false;
+          // Check diagonals
+          if (other_row_pos == row_pos - (queen_num - i) ||
+              other_row_pos == row_pos + (queen_num - i)) {
+            return false;
+          }
         }
       }
 
@@ -85,12 +89,14 @@ module Problem_NQueens
           // Check queen's safety
           var res = true;
 
-          for i in 0..#depth {
-            const other_row_pos: c_int = parent.board[i];
+          for gran in 0..#this.g {
+            for i in 0..#depth {
+              const other_row_pos: c_int = parent.board[i];
 
-            if (other_row_pos == parent.board[j] - (depth - i) ||
-                other_row_pos == parent.board[j] + (depth - i)) {
-              res = false;
+              if (other_row_pos == parent.board[j] - (depth - i) ||
+                  other_row_pos == parent.board[j] + (depth - i)) {
+                res = false;
+              }
             }
           }
 
@@ -141,6 +147,7 @@ module Problem_NQueens
     {
       writeln("\n=================================================");
       writeln("Resolution of the ", this.N, "-Queens instance");
+      writeln("  with ", this.g, " safety check(s) per evaluations");
       writeln("=================================================");
     }
 
@@ -163,7 +170,7 @@ module Problem_NQueens
 
     override proc output_filepath(): string
     {
-      var tup = ("./chpl_nqueens_", this.N:string, ".txt");
+      var tup = ("./chpl_nqueens_", this.N:string, "_", this.g:string, ".txt");
       return "".join(tup);
     }
 
@@ -171,6 +178,7 @@ module Problem_NQueens
     {
       writeln("\n  NQueens Benchmark Parameters:\n");
       writeln("   --N   int   Problem size (number of queens)\n");
+      writeln("   --g   int   Number of safety check(s) per evaluation\n");
     }
 
   } // end class

@@ -1,14 +1,15 @@
 # The N-Queens problem
 
-The problem consists in placing `N` chess queens on a $N \times N$ chessboard so that no two queens attack each other; thus, a solution requires that no two queens share the same row, column, or diagonal.
+The problem consists in placing `N` chess queens on a $N \times N$ chessboard so that no two queens attack each other; thus, a solution requires that no two queens share the same row, column, or diagonal. We also introduce an artificial granularity parameter, `g`, which controls the number of safety check(s) per evaluation.
 
 ### Launch & Command-line parameters
 
 ```chapel
-./main_nqueens.o --N=15
+./main_nqueens.o --N=15 --g=10
 ```
 where:
-- `N` (`int`): number of queens ($13$ by default).
+- `N` (`int`): number of queens ($13$ by default);
+- `g` (`int`): number of safety check(s) per evaluation ($1$ by default).
 
 ### Instances
 
