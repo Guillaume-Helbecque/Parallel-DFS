@@ -135,7 +135,8 @@ module search_multicore
         }
 
         // Decompose an element
-        var children = problem.decompose(Node, parent, eachExploredTree[taskId], eachExploredSol[taskId], best, best_task);
+        var children = problem.decompose(Node, parent, eachExploredTree[taskId], eachExploredSol[taskId],
+          eachMaxDepth[taskId], best, best_task);
 
         bag.addBulk(children, taskId);
 

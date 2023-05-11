@@ -188,8 +188,8 @@ module Problem_PFSP
       return childList;
     }
 
-    override proc decompose(type Node, const parent: Node, ref tree_loc: int, ref num_sol: int, best: atomic int,
-      ref best_task: int): list
+    override proc decompose(type Node, const parent: Node, ref tree_loc: int, ref num_sol: int,
+      ref max_depth: int, best: atomic int, ref best_task: int): list
     {
       select lb_name {
         when "lb1" {

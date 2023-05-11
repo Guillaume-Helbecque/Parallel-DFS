@@ -83,7 +83,7 @@ module Problem_UTS
     }
 
     override proc decompose(type Node, const parent: Node, ref tree_loc: int, ref num_sol: int,
-      best: atomic int, ref best_task: int): [] Node
+      ref max_depth: int, best: atomic int, ref best_task: int): [] Node
     {
       var numChildren: c_int = uts_numChildren(parent, treeType, nonLeafBF, nonLeafProb,
         b_0, shape_fn, gen_mx, shiftDepth);
@@ -92,7 +92,7 @@ module Problem_UTS
 
       if (numChildren > 0) {
         c_decompose(parent, c_ptrTo(children), treeType, numChildren, gen_mx,
-        shiftDepth, computeGranularity, tree_loc, best_task);
+        shiftDepth, computeGranularity, tree_loc, max_depth);
       }
       else {
         num_sol += 1;

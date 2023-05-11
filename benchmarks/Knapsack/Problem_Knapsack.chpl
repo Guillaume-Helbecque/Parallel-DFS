@@ -56,7 +56,7 @@ class Problem_Knapsack : Problem
   }
 
   override proc decompose(type Node, const parent: Node, ref tree_loc: int, ref num_sol: int,
-    best: atomic int, ref best_task: int): list
+    ref max_depth: int, best: atomic int, ref best_task: int): list
   {
     var childList: list(Node);
 

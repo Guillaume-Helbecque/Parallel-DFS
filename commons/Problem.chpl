@@ -9,8 +9,8 @@ module Problem
       halt("Error - copy() not implemented");
     }
 
-    proc decompose(type Node, const parent: Node, ref tree_loc: int, ref num_sol: int, best: atomic int,
-      ref best_task: int)
+    proc decompose(type Node, const parent: Node, ref tree_loc: int, ref num_sol: int,
+      ref max_depth: int, best: atomic int, ref best_task: int)
     {
       halt("Error - decompose() not implemented");
     }
