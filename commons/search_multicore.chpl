@@ -7,8 +7,6 @@ module search_multicore
   use DistributedBag_DFS;
 
   use aux;
-  use statistics;
-
   use Problem;
 
   const BUSY: bool = false;
@@ -23,10 +21,10 @@ module search_multicore
     var allTasksIdleFlag: atomic bool = false;
     var eachTaskState: [0..#here.maxTaskPar] atomic bool = BUSY;
 
-    // Counters and timers (for analysis)
-    var eachLocalExploredTree: [0..#numTasks] int = 0;
-    var eachLocalExploredSol: [0..#numTasks] int = 0;
-    var eachMaxDepth: [0..#numTasks] int = 0;
+    // Statistics
+    var eachExploredTree: [0..#numTasks] int;
+    var eachExploredSol: [0..#numTasks] int;
+    var eachMaxDepth: [0..#numTasks] int;
     var globalTimer: stopwatch;
 
     problem.print_settings();
@@ -48,23 +46,24 @@ module search_multicore
       initList.append(root);
 
       var best_task: int = best.read();
-      ref tree_loc = eachLocalExploredTree[0];
-      ref num_sol = eachLocalExploredSol[0];
+      ref tree_loc = eachExploredTree[0];
+      ref num_sol = eachExploredSol[0];
+      ref max_depth = eachMaxDepth[0];
 
       // Computation of the initial set
-      while (initList.size < initSize){
-        var parent: Node = initList.pop();
+      while (initList.size < initSize) {
+        var parent = initList.pop();
 
         {
           var children = problem.decompose(Node, parent, tree_loc, num_sol,
-            best, best_task);
+            max_depth, best, best_task);
 
           for elt in children do initList.insert(0, elt);
         }
       }
 
       // Static distribution of the set
-      var seg, loc: int = 0;
+      var seg, loc: int;
       for elt in initList {
         on Locales[loc % numLocales] do bag.add(elt, seg);
         loc += 1;
@@ -90,22 +89,20 @@ module search_multicore
     // PARALLEL EXPLORATION
     // =====================
 
-    coforall tid in 0..#numTasks {
+    coforall taskId in 0..#numTasks {
       /* ref tree_loc = eachLocalExploredTree[tid];
       ref num_sol = eachLocalExploredSol[tid]; */
 
-      // Task variables (best solution found)
+      // Task variables
       var best_task: int = best.read();
       var taskState: bool = false;
-
-      // Counters and timers (for analysis)
-      var count: int = 0;
+      var counter: int = 0;
 
       // Exploration of the tree
       while true do {
 
         // Try to remove an element
-        var (hasWork, parent): (int, Node) = bag.remove(tid);
+        var (hasWork, parent): (int, Node) = bag.remove(taskId);
 
         /*
           Check (or not) the termination condition regarding the value of 'hasWork':
@@ -116,20 +113,20 @@ module search_multicore
         if (hasWork == 1) {
           if taskState {
             taskState = false;
-            eachTaskState[tid].write(BUSY);
+            eachTaskState[taskId].write(BUSY);
           }
         }
         else if (hasWork == 0) {
           if !taskState {
             taskState = true;
-            eachTaskState[tid].write(IDLE);
+            eachTaskState[taskId].write(IDLE);
           }
           continue;
         }
         else {
           if !taskState {
             taskState = true;
-            eachTaskState[tid].write(IDLE);
+            eachTaskState[taskId].write(IDLE);
           }
           if allIdle(eachTaskState, allTasksIdleFlag) {
             break;
@@ -138,40 +135,35 @@ module search_multicore
         }
 
         // Decompose an element
-        {
-          /* writeln(parent); */
-          var children = problem.decompose(Node, parent, eachLocalExploredTree[tid], eachLocalExploredSol[tid], best, best_task);
+        var children = problem.decompose(Node, parent, eachExploredTree[taskId], eachExploredSol[taskId], best, best_task);
 
-          bag.addBulk(children, tid);
-        }
+        bag.addBulk(children, taskId);
 
-        var size = bag.bag!.segments[tid].nElems;
-        if (size >= 5) {
+        var size = bag.bag!.segments[taskId].nElems;
+        if (size >= 10) {
+          writeln("Offloaded on GPU");
 
           coforall gpu in here.gpus with (const ref problem, ref best_task/*, ref tree_loc, ref num_sol*/) do on gpu {
 
             var metricg: [0..1] int; // treeg, solg
             // Offload on Gpus
-            var wrap: [0..#size-1] Node;
-            for i in 0..#size-1 {
-              wrap[i] = bag.remove(tid)[1];
+            var wrap: [0..#size] Node;
+            for i in 0..#size {
+              wrap[i] = bag.remove(taskId)[1];
             }
 
-            /* for k in 0..#size-1 {
-              var wrap2: [0..0] Node;
-              wrap2[0] = wrap[k]; */
-              var children = problem.decompose_gpu(Node, wrap, metricg, best, best_task);
-              bag.addBulk(children, tid);
-            /* } */
-            eachLocalExploredTree[tid] += metricg[0];
-            eachLocalExploredSol[tid] += metricg[1];
+            var children = problem.decompose_gpu(Node, wrap, metricg, best, best_task);
+            bag.addBulk(children, taskId);
+
+            eachExploredTree[taskId] += metricg[0];
+            eachExploredSol[taskId] += metricg[1];
           } // coforall gpus
         }
 
         // Read the best solution found so far
-        if (tid == 0) {
-          count += 1;
-          if (count % 10000 == 0) then best_task = best.read();
+        if (taskId == 0) {
+          counter += 1;
+          if (counter % 10000 == 0) then best_task = best.read();
         }
 
         /* eachLocalExploredTree[tid] += metricg[0];
@@ -191,9 +183,9 @@ module search_multicore
 
     if saveTime {
       var path = problem.output_filepath();
-      /* save_time(numTasks:c_int, globalTimer.elapsed():c_double, path.c_str()); */
+      save_time(numTasks:c_int, globalTimer.elapsed():c_double, path.c_str());
     }
 
-    problem.print_results(eachLocalExploredTree, eachLocalExploredSol, eachMaxDepth, best.read(), globalTimer);
+    problem.print_results(eachExploredTree, eachExploredSol, eachMaxDepth, best.read(), globalTimer);
   }
 }

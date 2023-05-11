@@ -10,8 +10,8 @@ module Node_NQueens
 
   record Node_NQueens
   {
-    var board: c_array(c_int, NMax);
-    var depth: int;
+    var board: c_array(c_int, NMax+1);
+    /* var depth: int; */
 
     // default-initializer
     proc init()
@@ -21,14 +21,14 @@ module Node_NQueens
     proc init(problem)
     {
       this.complete();
-      for i in 0..#problem.N do this.board[i] = i:c_int;
+      for i in 0..#problem.N do this.board[i] = (i % problem.N):c_int;
     }
 
     // copy-initializer
     proc init(other: Node_NQueens)
     {
       this.board = other.board;
-      this.depth = other.depth;
+      /* this.depth = other.depth; */
     }
 
     proc deinit()

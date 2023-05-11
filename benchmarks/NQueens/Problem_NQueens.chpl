@@ -24,7 +24,7 @@ module Problem_NQueens
       return new Problem_NQueens(this.N, this.g);
     }
 
-    proc isSafe(const board: c_ptr(c_int), const queen_num: int, const row_pos: c_int): bool
+    proc isSafe(const board: c_ptr(c_int), const queen_num: c_int, const row_pos: c_int): bool
     {
       for gran in 0..#this.g {
         // For each queen before this one
@@ -48,7 +48,7 @@ module Problem_NQueens
     {
       var childList: list(Node);
 
-      const depth: int = parent.depth;
+      const depth = parent.board[this.N];
 
       if (depth == this.N) { // All queens are placed
         num_sol += 1;
@@ -60,7 +60,7 @@ module Problem_NQueens
           var tmp = child.board[depth];
           child.board[depth] = child.board[j];
           child.board[j] = tmp;
-          child.depth += 1;
+          child.board[this.N] += 1;
           childList.append(child);
           tree_loc += 1;
         }
@@ -72,24 +72,25 @@ module Problem_NQueens
     proc decompose_gpu(type Node, const bufNodes: [] Node, ref metricg: [0..1] int,
       best: atomic int, ref best_task: int): [] Node
     {
-      var bufSize: int = bufNodes.size;
-      var NN = this.N;
+      const bufSize: int = bufNodes.size;
+      const NN = this.N;
+      const G = this.g;
       var children: [0..#NN*bufSize] Node;
 
       forall pid in bufNodes.domain with (ref metricg) {
         assertOnGpu();
 
         const parent = bufNodes[pid];
-        const depth: int = parent.depth;
+        const depth = parent.board[NN];
 
         if (depth == NN) { // All queens are placed
-          metricg[1] += 1;
+//          metricg[1] += 1; // Github issue #22114
         }
         for j in depth..NN-1 {
           // Check queen's safety
           var res = true;
 
-          for gran in 0..#this.g {
+          for gran in 0..#G {
             for i in 0..#depth {
               const other_row_pos: c_int = parent.board[i];
 
@@ -101,33 +102,36 @@ module Problem_NQueens
           }
 
           // Generate children if any
-          ref child = children[j + pid * NN];
-
           if res {
-            for i in 0..#NN do child.board[i] = parent.board[i]; ////////////////////////////////////////
-            child.depth = parent.depth + 1;
+            ref child = children[j + pid * NN];
+
+            for i in 0..#NN do child.board[i] = parent.board[i];
+            /* child.board[NN] += 1; */
+            /* child.board[NN] = depth + 1:c_int; */
             //swap(child.board[depth], child.board[j]);
             var tmp = child.board[depth];
             child.board[depth] = child.board[j];
             child.board[j] = tmp;
-            metricg[0] += 1;
+//            metricg[0] += 1; // Github issue #22114
           }
         }
       } // end GPU-loop
 
       var c1: int = -1;
       for child in children {
-        if child.depth then c1 += 1;
+        if child.board[NN] then c1 += 1;
       }
       var children_true: [0..c1] Node;
       if (c1 != -1) {
         var c2: int;
         for child in children {
-          if child.depth {
+          if child.board[NN] {
             children_true[c2] = child;
             c2 += 1;
           }
         }
+
+        metricg[0] += c1+1;
       }
 
       return children_true;
@@ -147,7 +151,7 @@ module Problem_NQueens
     {
       writeln("\n=================================================");
       writeln("Resolution of the ", this.N, "-Queens instance");
-      writeln("  with ", this.g, " safety check(s) per evaluations");
+      writeln("  with ", this.g, " safety check(s) per evaluation");
       writeln("=================================================");
     }
 
