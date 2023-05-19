@@ -90,13 +90,14 @@ module search_multicore
     // =====================
 
     coforall taskId in 0..#numTasks {
-      /* ref tree_loc = eachLocalExploredTree[tid];
-      ref num_sol = eachLocalExploredSol[tid]; */
 
       // Task variables
       var best_task: int = best.read();
       var taskState: bool = false;
       var counter: int = 0;
+      ref tree_loc = eachExploredTree[taskId];
+      ref num_sol = eachExploredSol[taskId];
+      ref max_depth = eachMaxDepth[taskId];
 
       // Exploration of the tree
       while true do {
@@ -135,31 +136,29 @@ module search_multicore
         }
 
         // Decompose an element
-        var children = problem.decompose(Node, parent, eachExploredTree[taskId], eachExploredSol[taskId],
-          eachMaxDepth[taskId], best, best_task);
+        var children = problem.decompose(Node, parent, tree_loc, num_sol,
+          max_depth, best, best_task);
 
         bag.addBulk(children, taskId);
 
+        // Decompose on GPU
         var size = bag.bag!.segments[taskId].nElems;
         if (size >= 10) {
-          writeln("Offloaded on GPU");
+          writeln("Offloaded on GPU with size ", size);
 
-          coforall gpu in here.gpus with (const ref problem, ref best_task/*, ref tree_loc, ref num_sol*/) do on gpu {
+          // Offload on Gpus
+          var wrap: [0..#size] Node;
+          for i in 0..#size {
+            wrap[i] = bag.remove(taskId)[1];
+          }
 
-            var metricg: [0..1] int; // treeg, solg
-            // Offload on Gpus
-            var wrap: [0..#size] Node;
-            for i in 0..#size {
-              wrap[i] = bag.remove(taskId)[1];
-            }
+          var children = problem.decompose_gpu(Node, wrap, tree_loc, num_sol,
+            max_depth, best, best_task);
 
-            var children = problem.decompose_gpu(Node, wrap, metricg, best, best_task);
-            bag.addBulk(children, taskId);
-
-            eachExploredTree[taskId] += metricg[0];
-            eachExploredSol[taskId] += metricg[1];
-          } // coforall gpus
+          bag.addBulk(children, taskId);
         }
+
+        writeln("======================== ", eachExploredTree);
 
         // Read the best solution found so far
         if (taskId == 0) {

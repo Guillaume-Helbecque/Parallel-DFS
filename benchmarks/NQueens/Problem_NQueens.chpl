@@ -8,6 +8,10 @@ module Problem_NQueens
 
   use Problem;
 
+  const SAFE     =  1;
+  const LEAF     =  0;
+  const NOT_SAFE = -1;
+
   class Problem_NQueens : Problem
   {
     var N: int; // size of the problem (number of queens)
@@ -69,72 +73,72 @@ module Problem_NQueens
       return childList;
     }
 
-    proc decompose_gpu(type Node, const bufNodes: [] Node, ref metricg: [0..1] int,
-      best: atomic int, ref best_task: int): [] Node
+    proc decompose_gpu(type Node, const bufNodes: [] Node, ref tree_loc: int, ref num_sol: int,
+      ref max_depth: int, best: atomic int, ref best_task: int): list
     {
       const bufSize: int = bufNodes.size;
-      const NN = this.N;
       const G = this.g;
-      var children: [0..#NN*bufSize] Node;
 
-      forall pid in bufNodes.domain with (ref metricg) {
-        assertOnGpu();
+      var eval: [0..#this.N*bufSize] int = noinit;
 
-        const parent = bufNodes[pid];
-        const depth = parent.board[NN];
+      coforall gpu in here.gpus with (ref eval, const in bufNodes) do on gpu {
+        var eval_loc: [eval.domain] int = SAFE;
+        const bufNodes_loc: [0..#bufSize] Node = bufNodes; // ISSUE: Cannot use 'bufNodes.domain'
 
-        if (depth == NN) { // All queens are placed
-//          metricg[1] += 1; // Github issue #22114
-        }
-        for j in depth..NN-1 {
-          // Check queen's safety
-          var res = true;
+        foreach pid in 0..#this.N*bufSize {
+          assertOnGpu();
 
-          for gran in 0..#G {
-            for i in 0..#depth {
-              const other_row_pos: c_int = parent.board[i];
+          const parentId = pid / this.N;
+          const k = pid % this.N;
+          const parent = bufNodes_loc[parentId];
+          const depth = parent.board[this.N];
 
-              if (other_row_pos == parent.board[j] - (depth - i) ||
-                  other_row_pos == parent.board[j] + (depth - i)) {
-                res = false;
+          if (depth == this.N) then eval_loc[pid] = LEAF;
+
+          if (k >= depth) {
+            for gran in 0..#G { // ISSUE: Cannot put 'this.g'
+              // Check queen's safety
+              for i in 0..#depth {
+                const other_row_pos = parent.board[i];
+
+                if (other_row_pos == parent.board[k] - (depth - i) ||
+                    other_row_pos == parent.board[k] + (depth - i)) {
+                  eval_loc[pid] = NOT_SAFE;
+                }
               }
             }
           }
+        } // end foreach on GPU
+        eval = eval_loc;
+      } // end coforall GPU
 
-          // Generate children if any
-          if res {
-            ref child = children[j + pid * NN];
+      var children: list(Node);
 
-            for i in 0..#NN do child.board[i] = parent.board[i];
-            /* child.board[NN] += 1; */
-            /* child.board[NN] = depth + 1:c_int; */
+      // Generate children if any
+      for pid in bufNodes.domain {
+        const parent = bufNodes[pid];
+        const depth = parent.board[this.N];
+
+        for j in depth..this.N-1 {
+          if (eval[j + pid * this.N] == SAFE) {
+            ref child = new Node(parent);
+            child.board[this.N] += 1;
+            
             //swap(child.board[depth], child.board[j]);
             var tmp = child.board[depth];
             child.board[depth] = child.board[j];
             child.board[j] = tmp;
-//            metricg[0] += 1; // Github issue #22114
+
+            children.append(child);
+            tree_loc += 1;
+          }
+          else if (eval[j + pid * this.N] == LEAF) {
+            num_sol += 1;
           }
         }
-      } // end GPU-loop
-
-      var c1: int = -1;
-      for child in children {
-        if child.board[NN] then c1 += 1;
-      }
-      var children_true: [0..c1] Node;
-      if (c1 != -1) {
-        var c2: int;
-        for child in children {
-          if child.board[NN] {
-            children_true[c2] = child;
-            c2 += 1;
-          }
-        }
-
-        metricg[0] += c1+1;
       }
 
-      return children_true;
+      return children;
     }
 
     // No bounding in NQueens

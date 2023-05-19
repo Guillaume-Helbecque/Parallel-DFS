@@ -21,7 +21,7 @@ module Node_NQueens
     proc init(problem)
     {
       this.complete();
-      for i in 0..#problem.N do this.board[i] = (i % problem.N):c_int;
+      for i in 0..#problem.N do this.board[i] = i:c_int;
     }
 
     // copy-initializer
