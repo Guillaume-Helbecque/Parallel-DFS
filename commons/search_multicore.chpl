@@ -147,18 +147,19 @@ module search_multicore
           writeln("Offloaded on GPU with size ", size);
 
           // Offload on Gpus
-          var wrap: [0..#size] Node;
+          var parents: [0..#size] Node;
           for i in 0..#size {
-            wrap[i] = bag.remove(taskId)[1];
+            parents[i] = bag.remove(taskId)[1];
           }
+          // NOT IMPLEMENTED: 'bag.removeBulk(nElts, taskId)'
 
-          var children = problem.decompose_gpu(Node, wrap, tree_loc, num_sol,
+          var children = problem.decompose_gpu(Node, parents, tree_loc, num_sol,
             max_depth, best, best_task);
 
           bag.addBulk(children, taskId);
         }
 
-        writeln("======================== ", eachExploredTree);
+        writeln("======================== ", eachExploredSol);
 
         // Read the best solution found so far
         if (taskId == 0) {
@@ -166,8 +167,6 @@ module search_multicore
           if (counter % 10000 == 0) then best_task = best.read();
         }
 
-        /* eachLocalExploredTree[tid] += metricg[0];
-        eachLocalExploredSol[tid] += metricg[1]; */
       }
     }
 

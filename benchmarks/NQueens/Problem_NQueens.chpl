@@ -73,27 +73,27 @@ module Problem_NQueens
       return childList;
     }
 
-    proc decompose_gpu(type Node, const bufNodes: [] Node, ref tree_loc: int, ref num_sol: int,
+    proc decompose_gpu(type Node, const parents: [] Node, ref tree_loc: int, ref num_sol: int,
       ref max_depth: int, best: atomic int, ref best_task: int): list
     {
-      const bufSize: int = bufNodes.size;
+      const size: int = parents.size;
       const G = this.g;
 
-      var eval: [0..#this.N*bufSize] int = noinit;
+      var status: [0..#this.N*size] int = noinit;
 
-      coforall gpu in here.gpus with (ref eval, const in bufNodes) do on gpu {
-        var eval_loc: [eval.domain] int = SAFE;
-        const bufNodes_loc: [0..#bufSize] Node = bufNodes; // ISSUE: Cannot use 'bufNodes.domain'
+      coforall gpu in here.gpus with (ref status, const in parents) do on gpu {
+        var status_loc: [status.domain] int = SAFE;
+        const parents_loc: [0..#size] Node = parents; // ISSUE: Cannot use 'parents.domain'
 
-        foreach pid in 0..#this.N*bufSize {
+        foreach pid in 0..#this.N*size {
           assertOnGpu();
 
           const parentId = pid / this.N;
           const k = pid % this.N;
-          const parent = bufNodes_loc[parentId];
+          const parent = parents_loc[parentId];
           const depth = parent.board[this.N];
 
-          if (depth == this.N) then eval_loc[pid] = LEAF;
+          if (depth == this.N) then status_loc[pid] = LEAF;
 
           if (k >= depth) {
             for gran in 0..#G { // ISSUE: Cannot put 'this.g'
@@ -103,28 +103,28 @@ module Problem_NQueens
 
                 if (other_row_pos == parent.board[k] - (depth - i) ||
                     other_row_pos == parent.board[k] + (depth - i)) {
-                  eval_loc[pid] = NOT_SAFE;
+                  status_loc[pid] = NOT_SAFE;
                 }
               }
             }
           }
         } // end foreach on GPU
-        eval = eval_loc;
+        status = status_loc;
       } // end coforall GPU
 
       var children: list(Node);
 
       // Generate children if any
-      for pid in bufNodes.domain {
-        const parent = bufNodes[pid];
+      for parentId in parents.domain {
+        const parent = parents[parentId];
         const depth = parent.board[this.N];
 
         for j in depth..this.N-1 {
-          if (eval[j + pid * this.N] == SAFE) {
+          if (status[j + parentId * this.N] == SAFE) {
             ref child = new Node(parent);
             child.board[this.N] += 1;
-            
-            //swap(child.board[depth], child.board[j]);
+
+            //swap(child.board[depth], child.board[j]); // ISSUE: Cannot use C external 'swap'
             var tmp = child.board[depth];
             child.board[depth] = child.board[j];
             child.board[j] = tmp;
@@ -132,8 +132,8 @@ module Problem_NQueens
             children.append(child);
             tree_loc += 1;
           }
-          else if (eval[j + pid * this.N] == LEAF) {
-            num_sol += 1;
+          else if (status[j + parentId * this.N] == LEAF) {
+            num_sol += 1; // ISSUE: Does not work
           }
         }
       }
