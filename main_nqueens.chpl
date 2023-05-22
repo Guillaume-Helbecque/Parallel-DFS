@@ -6,13 +6,14 @@ module main_queens
   use aux;
   use search_multicore;
   use search_distributed;
+  use search_multicore_gpu;
 
   // NQueens-specific modules
   use Node_NQueens;
   use Problem_NQueens;
 
   // Common options
-  config const mode: string = "multicore"; // multicore, distributed
+  config const mode: string = "multicore";
   config const activeSet: bool = false;
   config const saveTime: bool = false;
 
@@ -42,6 +43,9 @@ module main_queens
       }
       when "distributed" {
         search_distributed(Node_NQueens, nqueens, saveTime, activeSet);
+      }
+      when "multicore-gpu" {
+        search_multicore_gpu(Node_NQueens, nqueens, saveTime, activeSet);
       }
       otherwise {
         halt("ERROR - Unknown parallel execution mode");

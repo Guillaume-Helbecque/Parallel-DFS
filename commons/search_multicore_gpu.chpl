@@ -1,5 +1,6 @@
-module search_multicore
+module search_multicore_gpu
 {
+  use GPU;
   use List;
   use Time;
   use CTypes;
@@ -11,14 +12,14 @@ module search_multicore
   const BUSY: bool = false;
   const IDLE: bool = true;
 
-  proc search_multicore(type Node, problem, const saveTime: bool, const activeSet: bool): void
+  proc search_multicore_gpu(type Node, problem, const saveTime: bool, const activeSet: bool): void
   {
     var numTasks = here.maxTaskPar;
 
     // Global variables (best solution found and termination)
     var best: atomic int = problem.setInitUB();
     var allTasksIdleFlag: atomic bool = false;
-    var eachTaskState: [0..#numTasks] atomic bool = BUSY;
+    var eachTaskState: [0..#here.maxTaskPar] atomic bool = BUSY;
 
     // Statistics
     var eachExploredTree: [0..#numTasks] int;
@@ -139,6 +140,26 @@ module search_multicore
           max_depth, best, best_task);
 
         bag.addBulk(children, taskId);
+
+        // Decompose on GPU
+        var size = bag.bag!.segments[taskId].nElems;
+        if (size >= 10) {
+          writeln("Offloaded on GPU with size ", size);
+
+          // Offload on Gpus
+          var parents: [0..#size] Node;
+          for i in 0..#size {
+            parents[i] = bag.remove(taskId)[1];
+          }
+          // NOT IMPLEMENTED: 'bag.removeBulk(nElts, taskId)'
+
+          var children = problem.decompose_gpu(Node, parents, tree_loc, num_sol,
+            max_depth, best, best_task);
+
+          bag.addBulk(children, taskId);
+        }
+
+        writeln("======================== ", eachExploredSol);
 
         // Read the best solution found so far
         if (taskId == 0) {

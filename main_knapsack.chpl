@@ -6,13 +6,14 @@ module main_knapsack
   use aux;
   use search_multicore;
   use search_distributed;
+  /* use search_multicore_gpu; */
 
   // Knapsack-specific modules
   use Node_Knapsack;
   use Problem_Knapsack;
 
   // Common options
-  config const mode: string = "multicore"; // multicore, distributed
+  config const mode: string = "multicore";
   config const activeSet: bool = false;
   config const saveTime: bool = false;
 
@@ -41,6 +42,9 @@ module main_knapsack
       }
       when "distributed" {
         search_distributed(Node_Knapsack, knapsack, saveTime, activeSet);
+      }
+      when "multicore-gpu" { // NOT IMPLEMENTED
+        /* search_multicore_gpu(Node_Knapsack, knapsack, saveTime, activeSet); */
       }
       otherwise {
         halt("ERROR - Unknown parallel execution mode");

@@ -73,7 +73,7 @@ module Problem_NQueens
       return childList;
     }
 
-    proc decompose_gpu(type Node, const parents: [] Node, ref tree_loc: int, ref num_sol: int,
+    override proc decompose_gpu(type Node, const parents: [] Node, ref tree_loc: int, ref num_sol: int,
       ref max_depth: int, best: atomic int, ref best_task: int): list
     {
       const size: int = parents.size;

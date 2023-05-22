@@ -15,6 +15,12 @@ module Problem
       halt("Error - decompose() not implemented");
     }
 
+    proc decompose_gpu(type Node, const parents: [] Node, ref tree_loc: int, ref num_sol: int,
+      ref max_depth: int, best: atomic int, ref best_task: int)
+    {
+      halt("Error - decompose_gpu() not implemented");
+    }
+
     proc setInitUB(): int
     {
       halt("Error - setInitUB() not implemented");
