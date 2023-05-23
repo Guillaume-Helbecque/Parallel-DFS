@@ -8,9 +8,9 @@ module Problem_NQueens
 
   use Problem;
 
-  const SAFE     =  1;
-  const LEAF     =  0;
-  const NOT_SAFE = -1;
+  const SAFE    : int = 1;
+  const LEAF    : int = 2;
+  const NOT_SAFE: int = 3;
 
   class Problem_NQueens : Problem
   {
@@ -28,13 +28,13 @@ module Problem_NQueens
       return new Problem_NQueens(this.N, this.g);
     }
 
-    proc isSafe(const board: c_ptr(c_int), const queen_num: c_int, const row_pos: c_int): bool
+    proc isSafe(const board: c_ptr(c_int), const queen_num: int, const row_pos: c_int): bool
     {
       for gran in 0..#this.g {
         // For each queen before this one
         for i in 0..#queen_num {
           // Get the row position
-          const other_row_pos: c_int = board[i];
+          const other_row_pos = board[i];
 
           // Check diagonals
           if (other_row_pos == row_pos - (queen_num - i) ||
@@ -50,9 +50,9 @@ module Problem_NQueens
     override proc decompose(type Node, const parent: Node, ref tree_loc: int, ref num_sol: int,
       ref max_depth: int, best: atomic int, ref best_task: int): list
     {
-      var childList: list(Node);
+      var children: list(Node);
 
-      const depth = parent.board[this.N];
+      const depth = parent.depth;
 
       if (depth == this.N) { // All queens are placed
         num_sol += 1;
@@ -64,65 +64,66 @@ module Problem_NQueens
           var tmp = child.board[depth];
           child.board[depth] = child.board[j];
           child.board[j] = tmp;
-          child.board[this.N] += 1;
-          childList.append(child);
+          child.depth += 1;
+          children.append(child);
           tree_loc += 1;
         }
       }
 
-      return childList;
+      return children;
     }
 
-    override proc decompose_gpu(type Node, const parents: [] Node, ref tree_loc: int, ref num_sol: int,
-      ref max_depth: int, best: atomic int, ref best_task: int): list
+    override proc evaluate_gpu(type Node, const parents: [] Node): [] int
     {
       const size: int = parents.size;
       const G = this.g;
 
-      var status: [0..#this.N*size] int = noinit;
+      var status_loc: [0..#this.N*size] int = SAFE;
+      var parents_loc: [0..#size] Node/* = parents*/; // ISSUE: Cannot use 'parents.domain'
+      for i in parents.domain do parents_loc[i] = parents[i]; // GPU features fail....
 
-      coforall gpu in here.gpus with (ref status, const in parents) do on gpu {
-        var status_loc: [status.domain] int = SAFE;
-        const parents_loc: [0..#size] Node = parents; // ISSUE: Cannot use 'parents.domain'
+      foreach pid in 0..#this.N*size {
+        assertOnGpu();
 
-        foreach pid in 0..#this.N*size {
-          assertOnGpu();
+        const parentId = pid / this.N;
+        const k = pid % this.N;
+        const parent = parents_loc[parentId];
+        const depth = parent.depth;
 
-          const parentId = pid / this.N;
-          const k = pid % this.N;
-          const parent = parents_loc[parentId];
-          const depth = parent.board[this.N];
+        if (depth == this.N) then status_loc[pid] = LEAF;
 
-          if (depth == this.N) then status_loc[pid] = LEAF;
+        if (k >= depth) {
+          for gran in 0..#G { // ISSUE: Cannot put 'this.g'
+            // Check queen's safety
+            for i in 0..#depth {
+              const other_row_pos = parent.board[i];
 
-          if (k >= depth) {
-            for gran in 0..#G { // ISSUE: Cannot put 'this.g'
-              // Check queen's safety
-              for i in 0..#depth {
-                const other_row_pos = parent.board[i];
-
-                if (other_row_pos == parent.board[k] - (depth - i) ||
-                    other_row_pos == parent.board[k] + (depth - i)) {
-                  status_loc[pid] = NOT_SAFE;
-                }
+              if (other_row_pos == parent.board[k] - (depth - i) ||
+                  other_row_pos == parent.board[k] + (depth - i)) {
+                status_loc[pid] = NOT_SAFE;
               }
             }
           }
-        } // end foreach on GPU
-        status = status_loc;
-      } // end coforall GPU
+        }
+      } // end foreach on GPU
 
+      return status_loc;
+    }
+
+    override proc process_children(type Node, const parents: [] Node, const status: [] int, ref tree_loc: int,
+      ref num_sol: int, ref max_depth: int, best: atomic int, ref best_task: int): list
+    {
       var children: list(Node);
 
       // Generate children if any
       for parentId in parents.domain {
         const parent = parents[parentId];
-        const depth = parent.board[this.N];
+        const depth = parent.depth;
 
         for j in depth..this.N-1 {
           if (status[j + parentId * this.N] == SAFE) {
             ref child = new Node(parent);
-            child.board[this.N] += 1;
+            child.depth += 1;
 
             //swap(child.board[depth], child.board[j]); // ISSUE: Cannot use C external 'swap'
             var tmp = child.board[depth];

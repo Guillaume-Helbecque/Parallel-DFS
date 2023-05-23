@@ -153,8 +153,13 @@ module search_multicore_gpu
           }
           // NOT IMPLEMENTED: 'bag.removeBulk(nElts, taskId)'
 
-          var children = problem.decompose_gpu(Node, parents, tree_loc, num_sol,
-            max_depth, best, best_task);
+          var evals: [0..#problem.N*size] int = noinit; // problem.N breaks genericity... list ?
+          coforall gpu in here.gpus with (ref evals, const in parents) do on gpu {
+            evals = problem.evaluate_gpu(Node, parents);
+          }
+
+          var children = problem.process_children(Node, parents, evals, tree_loc,
+            num_sol, max_depth, best, best_task);
 
           bag.addBulk(children, taskId);
         }
@@ -182,7 +187,7 @@ module search_multicore_gpu
 
     if saveTime {
       var path = problem.output_filepath();
-      save_time(numTasks:c_int, globalTimer.elapsed():c_double, path.c_str());
+      /* save_time(numTasks:c_int, globalTimer.elapsed():c_double, path.c_str()); */
     }
 
     problem.print_results(eachExploredTree, eachExploredSol, eachMaxDepth, best.read(), globalTimer);
