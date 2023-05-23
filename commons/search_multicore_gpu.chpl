@@ -164,8 +164,6 @@ module search_multicore_gpu
           bag.addBulk(children, taskId);
         }
 
-        writeln("======================== ", eachExploredSol);
-
         // Read the best solution found so far
         if (taskId == 0) {
           counter += 1;

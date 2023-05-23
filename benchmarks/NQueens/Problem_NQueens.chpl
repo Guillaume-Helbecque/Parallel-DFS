@@ -8,9 +8,8 @@ module Problem_NQueens
 
   use Problem;
 
-  const SAFE    : int = 1;
-  const LEAF    : int = 2;
-  const NOT_SAFE: int = 3;
+  const SAFE     =  1;
+  const NOT_SAFE = -1;
 
   class Problem_NQueens : Problem
   {
@@ -90,8 +89,6 @@ module Problem_NQueens
         const parent = parents_loc[parentId];
         const depth = parent.depth;
 
-        if (depth == this.N) then status_loc[pid] = LEAF;
-
         if (k >= depth) {
           for gran in 0..#G { // ISSUE: Cannot put 'this.g'
             // Check queen's safety
@@ -120,6 +117,9 @@ module Problem_NQueens
         const parent = parents[parentId];
         const depth = parent.depth;
 
+        if (depth == this.N) {
+          num_sol += 1;
+        }
         for j in depth..this.N-1 {
           if (status[j + parentId * this.N] == SAFE) {
             ref child = new Node(parent);
@@ -132,9 +132,6 @@ module Problem_NQueens
 
             children.append(child);
             tree_loc += 1;
-          }
-          else if (status[j + parentId * this.N] == LEAF) {
-            num_sol += 1; // ISSUE: Does not work
           }
         }
       }
