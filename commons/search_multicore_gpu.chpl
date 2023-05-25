@@ -144,18 +144,25 @@ module search_multicore_gpu
         // Decompose on GPU
         var size = bag.bag!.segments[taskId].nElems;
         if (size >= 10) {
-          writeln("Offloaded on GPU with size ", size);
+          var size_real = min(size-size%here.gpus.size, 10000);
+          // How to tune the maximum number of offloaded nodes ?
+          writeln("Offloaded on GPU with size ", size_real);
 
           // Offload on Gpus
-          var parents: [0..#size] Node;
-          for i in 0..#size {
-            parents[i] = bag.remove(taskId)[1];
-          }
+          var parents: [0..#size_real] Node;
+          for i in parents.domain do parents[i] = bag.remove(taskId)[1];
           // NOT IMPLEMENTED: 'bag.removeBulk(nElts, taskId)'
 
-          var evals: [0..#problem.N*size] int = noinit; // problem.N breaks genericity... list ?
-          coforall gpu in here.gpus with (ref evals, const in parents) do on gpu {
-            evals = problem.evaluate_gpu(Node, parents);
+          var evals: [0..#problem.N*parents.size] int = 0; // problem.N breaks genericity... list ?
+          var gpuChunkSize = (parents.size / here.gpus.size);
+          coforall gpuId in here.gpus.domain with (ref evals, const in parents) do on here.gpus[gpuId] {
+            const chunk  = gpuId*gpuChunkSize..#gpuChunkSize;
+            const chunk2 = gpuId*problem.N*gpuChunkSize..#problem.N*gpuChunkSize;
+
+            var subparents: [chunk] Node;
+            for i in chunk do subparents[i] = parents[i];
+            evals[chunk2] = problem.evaluate_gpu(Node, subparents);
+            // ISSUE: Why evaluate_gpu(Node, parents[chunk]) produces segfault ?
           }
 
           var children = problem.process_children(Node, parents, evals, tree_loc,

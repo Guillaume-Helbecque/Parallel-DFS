@@ -79,7 +79,7 @@ module Problem_NQueens
 
       var status_loc: [0..#this.N*size] int = SAFE;
       var parents_loc: [0..#size] Node/* = parents*/; // ISSUE: Cannot use 'parents.domain'
-      for i in parents.domain do parents_loc[i] = parents[i]; // GPU features fail....
+      for (p_l, p) in zip(parents_loc, parents) do p_l = p; // GPU features fail....
 
       foreach pid in 0..#this.N*size {
         assertOnGpu();
