@@ -349,6 +349,11 @@ module DistributedBag_DFS
       return bag!.remove(tid);
     }
 
+    proc removeBulk_(n: int, tid: int): (bool, [0..#n] eltType)
+    {
+      return bag!.removeBulk_(n, tid);
+    }
+
     /*
       Obtain the number of elements held in all bags across all nodes. This method
       is best-effort and can be non-deterministic for concurrent updates across nodes,
@@ -694,6 +699,22 @@ module DistributedBag_DFS
     proc remove(): (bool, eltType)
     {
       halt("DistributedBag_DFS Internal Error: DEADCODE.");
+    }
+
+    // This procedure is only callable by the owner thread
+    proc removeBulk_(const n: int, const taskId: int)//: (bool, [0..] eltType)
+    {
+      ref segment = segments[taskId];
+      var default: [0..-1] eltType;
+
+      // if the private region contains enough elements to be removed...
+      if (segment.tail - segment.o_split >= n) {
+        var elts: [0..#n] eltType;
+        for elt in elts do elt = segment.takeElement();
+        return (true, elts);
+      }
+
+      return (false, default);
     }
 
     /*

@@ -19,7 +19,7 @@ module search_multicore_gpu
     // Global variables (best solution found and termination)
     var best: atomic int = problem.setInitUB();
     var allTasksIdleFlag: atomic bool = false;
-    var eachTaskState: [0..#here.maxTaskPar] atomic bool = BUSY;
+    var eachTaskState: [0..#numTasks] atomic bool = BUSY;
 
     // Statistics
     var eachExploredTree: [0..#numTasks] int;
@@ -142,27 +142,16 @@ module search_multicore_gpu
         bag.addBulk(children, taskId);
 
         // Decompose on GPU
-        var size = bag.bag!.segments[taskId].nElems;
+        var size = min(bag.bag!.segments[taskId].nElems_private, 10000);
+        // How to tune the maximum number of offloaded nodes ?
+
         if (size >= 10) {
-          var size_real = min(size-size%here.gpus.size, 10000);
-          // How to tune the maximum number of offloaded nodes ?
-          writeln("Offloaded on GPU with size ", size_real);
+          var parents = bag.removeBulk_(size, taskId)[1];
+          var evals: [0..#problem.N*parents.size] int = noinit; // problem.N breaks genericity... list ?
 
-          // Offload on Gpus
-          var parents: [0..#size_real] Node;
-          for i in parents.domain do parents[i] = bag.remove(taskId)[1];
-          // NOT IMPLEMENTED: 'bag.removeBulk(nElts, taskId)'
-
-          var evals: [0..#problem.N*parents.size] int = 0; // problem.N breaks genericity... list ?
-          var gpuChunkSize = (parents.size / here.gpus.size);
-          coforall gpuId in here.gpus.domain with (ref evals, const in parents) do on here.gpus[gpuId] {
-            const chunk  = gpuId*gpuChunkSize..#gpuChunkSize;
-            const chunk2 = gpuId*problem.N*gpuChunkSize..#problem.N*gpuChunkSize;
-
-            var subparents: [chunk] Node;
-            for i in chunk do subparents[i] = parents[i];
-            evals[chunk2] = problem.evaluate_gpu(Node, subparents);
-            // ISSUE: Why evaluate_gpu(Node, parents[chunk]) produces segfault ?
+          // Offload on GPUs
+          on here.gpus[taskId] {
+            evals = problem.evaluate_gpu(Node, parents);
           }
 
           var children = problem.process_children(Node, parents, evals, tree_loc,
