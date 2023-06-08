@@ -29,7 +29,7 @@ module Problem_NQueens
 
     proc isSafe(const board: c_ptr(c_int), const queen_num: int, const row_pos: c_int): bool
     {
-      for gran in 0..#this.g {
+      for 0..#this.g {
         // For each queen before this one
         for i in 0..#queen_num {
           // Get the row position
@@ -75,11 +75,11 @@ module Problem_NQueens
     override proc evaluate_gpu(type Node, const parents: [] Node): [] int
     {
       const size: int = parents.size;
-      const G = this.g;
+      const G = this.g; // WORKAROUND
 
       var status_loc: [0..#this.N*size] int = SAFE;
-      var parents_loc: [0..#size] Node/* = parents*/; // ISSUE: Cannot use 'parents.domain'
-      for i in 0..#size do parents_loc[i] = parents[i]; // GPU features fail....
+      var parents_loc: [0..#size] Node;// = parents; // Github issue #22519
+      for i in 0..#size do parents_loc[i] = parents[i]; // WORKAROUND
 
       foreach pid in 0..#this.N*size {
         assertOnGpu();
@@ -90,7 +90,7 @@ module Problem_NQueens
         const depth = parent.depth;
 
         if (k >= depth) {
-          for gran in 0..#G { // ISSUE: Cannot put 'this.g'
+          for 0..#G { // ISSUE: Cannot put 'this.g'
             // Check queen's safety
             for i in 0..#depth {
               const other_row_pos = parent.board[i];

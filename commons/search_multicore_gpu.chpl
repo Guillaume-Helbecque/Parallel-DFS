@@ -9,6 +9,9 @@ module search_multicore_gpu
   use aux;
   use Problem;
 
+  config const minSize = 25;
+  config const maxSize = 50000;
+
   const BUSY: bool = false;
   const IDLE: bool = true;
 
@@ -99,6 +102,8 @@ module search_multicore_gpu
       ref num_sol = eachExploredSol[taskId];
       ref max_depth = eachMaxDepth[taskId];
 
+      var evalT: stopwatch;
+
       // Exploration of the tree
       while true do {
 
@@ -142,16 +147,19 @@ module search_multicore_gpu
         bag.addBulk(children, taskId);
 
         // Decompose on GPU
-        var size = min(bag.bag!.segments[taskId].nElems_private, 10000);
+        var size = min(bag.bag!.segments[taskId].nElems_private, maxSize);
         // How to tune the maximum number of offloaded nodes ?
 
-        if (size >= 10) {
+        if (size >= minSize) {
           var parents = bag.removeBulk_(size, taskId)[1];
           var evals: [0..#problem.N*parents.size] int = noinit; // problem.N breaks genericity... list ?
 
           // Offload on GPUs
+          writeln("Offloaded on GPU: ", size);
           on here.gpus[taskId] {
+            evalT.start();
             evals = problem.evaluate_gpu(Node, parents);
+            evalT.stop();
           }
 
           var children = problem.process_children(Node, parents, evals, tree_loc,
@@ -166,6 +174,8 @@ module search_multicore_gpu
           if (counter % 10000 == 0) then best_task = best.read();
         }
 
+        writeln("elasped time for eval on GPU: ", evalT.elapsed());
+        evalT.clear();
       }
     }
 
