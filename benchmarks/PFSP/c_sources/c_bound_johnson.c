@@ -7,7 +7,7 @@
 
 johnson_bd_data* new_johnson_bd_data(const bound_data *const data/*, enum lb2_variant lb2_type*/)
 {
-    johnson_bd_data *b = malloc(sizeof(johnson_bd_data));
+    johnson_bd_data *b = (johnson_bd_data*)malloc(sizeof(johnson_bd_data));
 
     b->nb_jobs = data->nb_jobs;
     b->nb_machines = data->nb_machines;
@@ -24,11 +24,11 @@ johnson_bd_data* new_johnson_bd_data(const bound_data *const data/*, enum lb2_va
     if(lb2_type==LB2_LEARN)
         b->nb_machine_pairs = (b->nb_machines*(b->nb_machines-1))/2;
 
-    b->lags = malloc(b->nb_machine_pairs*b->nb_jobs*sizeof(int));
-    b->johnson_schedules = malloc(b->nb_machine_pairs*b->nb_jobs*sizeof(int));
-    b->machine_pairs[0] = malloc(b->nb_machine_pairs*sizeof(int));
-    b->machine_pairs[1] = malloc(b->nb_machine_pairs*sizeof(int));
-    b->machine_pair_order = malloc(b->nb_machine_pairs*sizeof(int));
+    b->lags = (int*)malloc(b->nb_machine_pairs*b->nb_jobs*sizeof(int));
+    b->johnson_schedules = (int*)malloc(b->nb_machine_pairs*b->nb_jobs*sizeof(int));
+    b->machine_pairs[0] = (int*)malloc(b->nb_machine_pairs*sizeof(int));
+    b->machine_pairs[1] = (int*)malloc(b->nb_machine_pairs*sizeof(int));
+    b->machine_pair_order = (int*)malloc(b->nb_machine_pairs*sizeof(int));
     return b;
 }
 

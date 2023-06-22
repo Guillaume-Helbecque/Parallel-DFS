@@ -5,12 +5,12 @@
 
 bound_data* new_bound_data(int _jobs, int _machines)
 {
-    bound_data *b = malloc(sizeof(bound_data));
+    bound_data *b = (bound_data*)malloc(sizeof(bound_data));
 
     if(b){
-        b->p_times = malloc(_jobs*_machines*sizeof(int));
-        b->min_heads = malloc(_machines*sizeof(int));
-        b->min_tails = malloc(_machines*sizeof(int));
+        b->p_times = (int*)malloc(_jobs*_machines*sizeof(int));
+        b->min_heads = (int*)malloc(_machines*sizeof(int));
+        b->min_tails = (int*)malloc(_machines*sizeof(int));
         b->nb_jobs = _jobs;
         b->nb_machines = _machines;
     }

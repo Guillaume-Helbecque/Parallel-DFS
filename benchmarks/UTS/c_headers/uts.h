@@ -66,8 +66,8 @@ typedef enum uts_trees_e    tree_t;
 typedef enum uts_geoshape_e geoshape_t;
 
 /* Strings for the above enums */
-extern char* uts_trees_str[];
-extern char* uts_geoshapes_str[];
+extern char const * uts_trees_str[];
+extern char const * uts_geoshapes_str[];
 
 /* For stats generation */
 typedef unsigned long long counter_t;

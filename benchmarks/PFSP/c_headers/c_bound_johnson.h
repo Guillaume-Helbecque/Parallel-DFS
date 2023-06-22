@@ -35,6 +35,7 @@ void free_johnson_bd_data(johnson_bd_data* b);
 
 void fill_machine_pairs(johnson_bd_data* b/*, enum lb2_variant lb2_type*/);
 void fill_lags(const bound_data *const lb1, const johnson_bd_data *const lb2);
+int johnson_comp(const void * elem1, const void * elem2);
 void fill_johnson_schedules(const bound_data *const lb1, const johnson_bd_data *const lb2);
 
 //helper

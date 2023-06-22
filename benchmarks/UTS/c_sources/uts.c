@@ -26,9 +26,9 @@
 
 #include "../c_headers/uts.h"
 
-char * uts_trees_str[]     = { "Binomial", "Geometric", "Hybrid", "Balanced" };
-char * uts_geoshapes_str[] = { "Linear decrease", "Exponential decrease", "Cyclic",
-                              "Fixed branching factor" };
+char const * uts_trees_str[]     = { "Binomial", "Geometric", "Hybrid", "Balanced" };
+char const * uts_geoshapes_str[] = { "Linear decrease", "Exponential decrease", "Cyclic",
+                                        "Fixed branching factor" };
 
 /***********************************************************
  *                                                         *

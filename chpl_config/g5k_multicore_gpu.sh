@@ -17,6 +17,7 @@ export CHPL_HOME=~/chapel-${CHPL_VERSION}MCG
 if [ ! -d "$CHPL_HOME" ]; then
     cd ~
     wget -c https://github.com/chapel-lang/chapel/releases/download/${CHPL_VERSION}/chapel-${CHPL_VERSION}.tar.gz -O - | tar xz
+    mv chapel-$CHPL_VERSION $CHPL_HOME
 fi
 
 CHPL_BIN_SUBDIR=`"$CHPL_HOME"/util/chplenv/chpl_bin_subdir.py`
@@ -29,7 +30,7 @@ export CHPL_LLVM=bundled
 NUM_T_LOCALE=$(cat /proc/cpuinfo | grep processor | wc -l)
 export CHPL_RT_NUM_THREADS_PER_LOCALE=$NUM_T_LOCALE
 export CHPL_LOCALE_MODEL="gpu"
-export CHPL_GPU_CODEGEN="cuda"
+export CHPL_GPU="nvidia"
 
 export GASNET_PHYSMEM_MAX='64 GB'
 

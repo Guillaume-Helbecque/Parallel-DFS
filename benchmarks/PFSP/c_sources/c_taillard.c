@@ -36,13 +36,13 @@ int taillard_get_nb_jobs(const int id)
     if (id > 90) return 200;
     if (id > 60) return 100;
     if (id > 30) return 50;
-    /*if(id>0)*/ return 20;
+    return 20;
 }
 
 int taillard_get_nb_machines(const int id)
 {
-    if (id > 110) return 20;    //500x20
-    if (id > 100) return 20;    //200x20
+    if (id > 110) return 20; //500x20
+    if (id > 100) return 20; //200x20
     if (id > 90) return 10; //200x10
     if (id > 80) return 20; //100x20
     if (id > 70) return 10; //100x10
@@ -52,7 +52,7 @@ int taillard_get_nb_machines(const int id)
     if (id > 30) return 5;  //50x5
     if (id > 20) return 20; //20x20
     if (id > 10) return 10; //20x10
-    /*if(id>0 )*/ return 5; //20x5
+    return 5; //20x5
 }
 
 long unif(long * seed, long low, long high)
@@ -75,7 +75,7 @@ void taillard_get_processing_times(int *ptm, const int id)
     long time_seed = time_seeds[id - 1];
 
     if(!ptm){
-        ptm = malloc(N*M*sizeof(int));
+        ptm = (int*)malloc(N*M*sizeof(int));
     }
 
     for(int i=0;i<M;i++){
