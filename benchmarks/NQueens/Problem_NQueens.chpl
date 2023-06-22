@@ -1,6 +1,6 @@
 module Problem_NQueens
 {
-  /* use aux; */
+  use aux;
   use GPU;
   use List;
   use Time;
@@ -59,10 +59,7 @@ module Problem_NQueens
       for j in depth..this.N-1 {
         if isSafe(parent.board, depth, parent.board[j]) {
           var child = new Node(parent);
-          //swap(child.board[depth], child.board[j]);
-          var tmp = child.board[depth];
-          child.board[depth] = child.board[j];
-          child.board[j] = tmp;
+          swap(child.board[depth], child.board[j]);
           child.depth += 1;
           children.pushBack(child);
           tree_loc += 1;
@@ -122,14 +119,9 @@ module Problem_NQueens
         }
         for j in depth..this.N-1 {
           if (status[j + parentId * this.N] == SAFE) {
-            ref child = new Node(parent);
+            var child = new Node(parent);
+            swap(child.board[depth], child.board[j]);
             child.depth += 1;
-
-            //swap(child.board[depth], child.board[j]); // ISSUE: Cannot use C external 'swap'
-            var tmp = child.board[depth];
-            child.board[depth] = child.board[j];
-            child.board[j] = tmp;
-
             children.pushBack(child);
             tree_loc += 1;
           }

@@ -193,8 +193,6 @@ module search_distributed
 
     globalTimer.stop();
 
-    /* bag.clear(); */
-
     // ========
     // OUTPUTS
     // ========
@@ -203,7 +201,7 @@ module search_distributed
 
     if saveTime {
       var path = problem.output_filepath();
-      /* save_time(numLocales:c_int, globalTimer.elapsed():c_double, path.c_str()); */
+      save_time(numLocales:c_int, globalTimer.elapsed():c_double, path.c_str());
     }
 
     problem.print_results(eachExploredTree, eachExploredSol, eachMaxDepth, best.read(), globalTimer);

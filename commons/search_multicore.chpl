@@ -151,8 +151,6 @@ module search_multicore
 
     globalTimer.stop();
 
-    /* bag.clear(); */
-
     // ========
     // OUTPUTS
     // ========
@@ -161,7 +159,7 @@ module search_multicore
 
     if saveTime {
       var path = problem.output_filepath();
-      /* save_time(numTasks:c_int, globalTimer.elapsed():c_double, path.c_str()); */
+      save_time(numTasks:c_int, globalTimer.elapsed():c_double, path.c_str());
     }
 
     problem.print_results(eachExploredTree, eachExploredSol, eachMaxDepth, best.read(), globalTimer);
