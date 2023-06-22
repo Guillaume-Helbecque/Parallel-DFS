@@ -1,13 +1,20 @@
 #!/bin/bash
 
-# Configuration of the Chapel's environment for distributed experiments on laptop.
-# This configuration simulates multiple Chapel locales with one workstation. This
-# configuration is useful for testing, but is not expected to perform well.
+# Configuration of Chapel for distributed experiments on laptop. It simulates
+# multiple locales within a single workstation and is useful for debugging but
+# not for performance.
 
 export HERE=$(pwd)
 
 export CHPL_VERSION=1.31.0
-export CHPL_HOME=~/chapel-${CHPL_VERSION}
+export CHPL_HOME=~/chapel-${CHPL_VERSION}D
+
+# Download Chapel if not found
+if [ ! -d "$CHPL_HOME" ]; then
+  cd ~
+  wget -c https://github.com/chapel-lang/chapel/releases/download/$CHPL_VERSION/chapel-${CHPL_VERSION}.tar.gz -O - | tar xz
+  mv chapel-$CHPL_VERSION $CHPL_HOME
+fi
 
 CHPL_BIN_SUBDIR=`"$CHPL_HOME"/util/chplenv/chpl_bin_subdir.py`
 export PATH="$PATH":"$CHPL_HOME/bin/$CHPL_BIN_SUBDIR"
@@ -25,12 +32,6 @@ export CHPL_COMM=gasnet
 export CHPL_COMM_SUBSTRATE=udp
 export GASNET_SPAWNFN=L
 
-# if Chapel's directory not found, download and unpack it.
-if [ ! -d "$CHPL_HOME" ]; then
-  cd ~
-  wget -c https://github.com/chapel-lang/chapel/releases/download/${CHPL_VERSION}/chapel-${CHPL_VERSION}.tar.gz -O - | tar xz
-fi
-
 cd $CHPL_HOME
-make -j ${NUM_T_LOCALE}
-cd $HERE
+make -j $NUM_T_LOCALE
+cd $HERE/..
