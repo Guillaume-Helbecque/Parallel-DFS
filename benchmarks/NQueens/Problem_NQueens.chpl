@@ -64,7 +64,7 @@ module Problem_NQueens
           child.board[depth] = child.board[j];
           child.board[j] = tmp;
           child.depth += 1;
-          children.append(child);
+          children.pushBack(child);
           tree_loc += 1;
         }
       }
@@ -130,7 +130,7 @@ module Problem_NQueens
             child.board[depth] = child.board[j];
             child.board[j] = tmp;
 
-            children.append(child);
+            children.pushBack(child);
             tree_loc += 1;
           }
         }

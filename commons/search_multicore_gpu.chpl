@@ -46,7 +46,7 @@ module search_multicore_gpu
       */
       var initSize: int = 2 * numTasks * numLocales;
       var initList: list(Node);
-      initList.append(root);
+      initList.pushBack(root);
 
       var best_task: int = best.read();
       ref tree_loc = eachExploredTree[0];
@@ -55,7 +55,7 @@ module search_multicore_gpu
 
       // Computation of the initial set
       while (initList.size < initSize) {
-        var parent = initList.pop();
+        var parent = initList.popBack();
 
         {
           var children = problem.decompose(Node, parent, tree_loc, num_sol,

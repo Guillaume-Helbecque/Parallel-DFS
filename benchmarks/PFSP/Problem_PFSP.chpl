@@ -9,10 +9,6 @@ module Problem_PFSP
   use Instances;
   use Header_chpl_c_PFSP;
 
-  use Instance;
-  use Instance_VRF;
-  use Instance_Taillard;
-
   class Problem_PFSP : Problem
   {
     var name: string;
@@ -102,7 +98,7 @@ module Problem_PFSP
         } else { // if not leaf
           if (lowerbound < best_task) { // if child feasible
             tree_loc += 1;
-            childList.append(child);
+            childList.pushBack(child);
           }
         }
       }
@@ -115,11 +111,11 @@ module Problem_PFSP
     {
       var childList: list(Node); // list containing the child nodes
 
-      var lb_begin = c_malloc(c_int, jobs);
+      var lb_begin = allocate(c_int, jobs);
       var BEGINEND: c_int = -1;
 
       lb1_children_bounds(this.lbound1, parent.prmu, parent.limit1:c_int, parent.limit2:c_int,
-        lb_begin, c_nil, c_nil, c_nil, BEGINEND);
+        lb_begin, nil, nil, nil, BEGINEND);
 
       // Treatment of childs
       for i in parent.limit1+1..parent.limit2-1 {
@@ -144,14 +140,14 @@ module Problem_PFSP
               swap(child.prmu[child.limit2], child.prmu[i]);
             }
 
-            childList.append(child);
+            childList.pushBack(child);
             tree_loc += 1;
           }
         }
 
       }
 
-      c_free(lb_begin);
+      deallocate(lb_begin);
 
       return childList;
     }
@@ -179,7 +175,7 @@ module Problem_PFSP
         } else { // if not leaf
           if (lowerbound < best_task) { // if child feasible
             tree_loc += 1;
-            childList.append(child);
+            childList.pushBack(child);
           }
         }
 

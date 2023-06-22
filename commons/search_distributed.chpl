@@ -46,7 +46,7 @@ module search_distributed
       */
       var initSize: int = 2 * here.maxTaskPar * numLocales;
       var initList: list(Node);
-      initList.append(root);
+      initList.pushBack(root);
 
       var best_task, best_locale: int = best.read();
       ref tree_loc = eachExploredTree[0];
@@ -55,7 +55,7 @@ module search_distributed
 
       // Computation of the initial set
       while (initList.size < initSize) {
-        var parent: Node = initList.pop();
+        var parent: Node = initList.popBack();
 
         {
           var children = problem.decompose(Node, parent, tree_loc, num_sol, max_depth, best, best_task);

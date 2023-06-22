@@ -74,7 +74,7 @@ class Problem_Knapsack : Problem
           }
         }
         else {
-          childList.append(child);
+          childList.pushBack(child);
           tree_loc += 1;
         }
       }

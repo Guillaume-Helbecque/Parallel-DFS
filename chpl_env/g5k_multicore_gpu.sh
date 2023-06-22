@@ -10,7 +10,7 @@ module load cmake/3.23.3_gcc-10.4.0
 
 export HERE=$(pwd)
 
-export CHPL_VERSION=1.30.0
+export CHPL_VERSION=1.31.0
 export CHPL_HOME=~/chapel-${CHPL_VERSION}
 
 # Download the latest Chapel's release if not yet done

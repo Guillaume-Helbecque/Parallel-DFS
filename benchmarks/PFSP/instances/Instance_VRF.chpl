@@ -22,7 +22,7 @@ class Instance_VRF : Instance
     this.jobs = channel.read(c_int);
     this.machines = channel.read(c_int);
 
-    this.data = c_malloc(c_int, this.jobs*this.machines);
+    this.data = allocate(c_int, this.jobs*this.machines);
     var data1 = channel.read([0..#2*jobs*machines] c_int);
     var data2: [0..#jobs*machines] c_int = data1(1..#2*jobs*machines by 2);
     for j in 0..#machines {
