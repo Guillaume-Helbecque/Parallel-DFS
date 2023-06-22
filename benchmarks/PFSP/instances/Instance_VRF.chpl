@@ -35,6 +35,11 @@ class Instance_VRF : Instance
     f.close();
   }
 
+  proc deinit()
+  {
+    deallocate(data);
+  }
+
   override proc get_nb_jobs(): c_int
   {
     return this.jobs;
