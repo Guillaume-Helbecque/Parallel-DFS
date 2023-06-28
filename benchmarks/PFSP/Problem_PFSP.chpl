@@ -1,6 +1,7 @@
 module Problem_PFSP
 {
   use aux;
+  use GPU;
   use List;
   use Time;
   use CTypes;
@@ -195,6 +196,78 @@ module Problem_PFSP
       }
     }
 
+    //TODO: implement evaluate_gpu_lb1
+    //TODO: implement evaluate_gpu_lb1_d
+
+    proc evaluate_gpu_lb2(type Node, const parents: [] Node): [] int
+    {
+      const size: int = parents.size;
+
+      var status_loc: [0..#this.jobs*size] int;
+      var parents_loc: [0..#size] Node;// = parents; // Github issue #22519
+      for i in 0..#size do parents_loc[i] = parents[i]; // WORKAROUND
+
+      foreach pid in 0..#this.jobs*size {
+        assertOnGpu();
+
+        //TODO: implement the evaluation of lowerbounds
+        // ISSUE: The use of most of extern functions within a GPU eligible loop
+        // is not supported (Chapel 1.31.0).
+      }
+
+      return status_loc;
+    }
+
+    override proc evaluate_gpu(type Node, const parents: [] Node): [] int
+    {
+      select lb_name {
+        /* when "lb1" {
+          return evaluate_gpu_lb1(Node, parents);
+        } */
+        /* when "lb1_d" {
+          return evaluate_gpu_lb1_d(Node, parents);
+        } */
+        when "lb2" {
+          return evaluate_gpu_lb2(Node, parents);
+        }
+        otherwise {
+          halt("Error - Unknown lower bound");
+        }
+      }
+    }
+
+    //TODO: implement process_children_lb1
+    //TODO: implement process_children_lb1_d
+
+    proc process_children_lb2(type Node, const parents: [] Node, const status: [] int, ref tree_loc: int,
+      ref num_sol: int, ref max_depth: int, best: atomic int, ref best_task: int): list
+    {
+      var children: list(Node);
+
+      //TODO: implement the processing of children
+
+      return children;
+    }
+
+    override proc process_children(type Node, const parents: [] Node, const status: [] int, ref tree_loc: int,
+      ref num_sol: int, ref max_depth: int, best: atomic int, ref best_task: int): list
+    {
+      select lb_name {
+        /* when "lb1" {
+          return process_children_lb1(Node, parents, status, tree_loc, num_sol, max_depth, best, best_task);
+        } */
+        /* when "lb1_d" {
+          return process_children_lb1_d(Node, parents, status, tree_loc, num_sol, max_depth, best, best_task);
+        } */
+        when "lb2" {
+          return process_children_lb2(Node, parents, status, tree_loc, num_sol, max_depth, best, best_task);
+        }
+        otherwise {
+          halt("Error - Unknown lower bound");
+        }
+      }
+    }
+
     override proc setInitUB(): int
     {
       var inst = new Instance();
@@ -208,6 +281,11 @@ module Problem_PFSP
       else {
         return inst.get_ub();
       }
+    }
+
+    override proc length
+    {
+      return this.jobs;
     }
 
     // =======================

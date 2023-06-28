@@ -6,14 +6,14 @@ module main_pfsp
   use aux;
   use search_multicore;
   use search_distributed;
-  /* use search_multicore_gpu; */
+  use search_multicore_gpu;
 
   // PFSP-specific modules
   use Node_PFSP;
   use Problem_PFSP;
 
   // Common options
-  config const mode: string = "multicore";
+  config const mode: string = "multicore-gpu";
   config const activeSet: bool = false;
   config const saveTime: bool = false;
 
@@ -46,8 +46,8 @@ module main_pfsp
       when "distributed" {
         search_distributed(Node_PFSP, pfsp, saveTime, activeSet);
       }
-      when "multicore-gpu" { // NOT IMPLEMENTED
-        /* search_multicore_gpu(Node_PFSP, pfsp, saveTime, activeSet); */
+      when "multicore-gpu" {
+        search_multicore_gpu(Node_PFSP, pfsp, saveTime, activeSet);
       }
       otherwise {
         halt("ERROR - Unknown parallel execution mode");
