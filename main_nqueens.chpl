@@ -13,7 +13,7 @@ module main_queens
   use Problem_NQueens;
 
   // Common options
-  config const mode: string = "multicore";
+  config const mode: string = "multicore-gpu";
   config const activeSet: bool = false;
   config const saveTime: bool = false;
 

@@ -4,6 +4,7 @@ module search_multicore_gpu
   use List;
   use Time;
   use CTypes;
+  use GpuDiagnostics;
   use DistributedBag_DFS;
 
   use aux;
@@ -86,6 +87,7 @@ module search_multicore_gpu
       bag.add(root, 0);
     }
 
+    startGpuDiagnostics();
     globalTimer.start();
 
     // =====================
@@ -101,8 +103,6 @@ module search_multicore_gpu
       ref tree_loc = eachExploredTree[taskId];
       ref num_sol = eachExploredSol[taskId];
       ref max_depth = eachMaxDepth[taskId];
-
-      var evalT: stopwatch;
 
       // Exploration of the tree
       while true do {
@@ -151,15 +151,14 @@ module search_multicore_gpu
         // How to tune the maximum number of offloaded nodes ?
 
         if (size >= minSize) {
-          var parents = bag.removeBulk_(size, taskId)[1];
+          var (hasWork, parents) = bag.removeBulk_(size, taskId);
+          if !hasWork then continue;
           var evals: [0..#problem.N*parents.size] int = noinit; // problem.N breaks genericity... list ?
 
           // Offload on GPUs
-          writeln("Offloaded on GPU: ", size);
+          /* writeln("Offloaded on GPU: ", size); */
           on here.gpus[taskId] {
-            evalT.start();
             evals = problem.evaluate_gpu(Node, parents);
-            evalT.stop();
           }
 
           var children = problem.process_children(Node, parents, evals, tree_loc,
@@ -174,18 +173,18 @@ module search_multicore_gpu
           if (counter % 10000 == 0) then best_task = best.read();
         }
 
-        writeln("elasped time for eval on GPU: ", evalT.elapsed());
-        evalT.clear();
       }
     }
 
     globalTimer.stop();
+    stopGpuDiagnostics();
 
     // ========
     // OUTPUTS
     // ========
 
     writeln("\nExploration terminated.");
+    writeln("Kernel launches: ", getGpuDiagnostics()[0].kernel_launch);
 
     if saveTime {
       var path = problem.output_filepath();
