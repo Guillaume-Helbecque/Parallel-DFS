@@ -137,6 +137,11 @@ module Problem_NQueens
       return 0;
     }
 
+    override proc length
+    {
+      return this.N;
+    }
+
     // =======================
     // Utility functions
     // =======================

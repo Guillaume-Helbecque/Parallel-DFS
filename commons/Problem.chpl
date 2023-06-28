@@ -31,6 +31,11 @@ module Problem
       halt("Error - setInitUB() not implemented");
     }
 
+    proc length
+    {
+      halt("Error - length not implemented");
+    }
+
     // =======================
     // Utility functions
     // =======================
