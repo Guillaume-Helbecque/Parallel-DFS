@@ -72,7 +72,6 @@ module Problem_NQueens
     override proc evaluate_gpu(type Node, const parents: [] Node): [] int
     {
       const size: int = parents.size;
-      const G = this.g; // WORKAROUND
 
       var status_loc: [0..#this.N*size] int = SAFE;
       var parents_loc: [0..#size] Node;// = parents; // Github issue #22519
@@ -86,17 +85,16 @@ module Problem_NQueens
         const parent = parents_loc[parentId];
         const depth = parent.depth;
 
-        if (k >= depth) {
-          for 0..#G { // ISSUE: Cannot put 'this.g'
-            // Check queen's safety
-            for i in 0..#depth {
-              const other_row_pos = parent.board[i];
+        const notScheduled: int = (k >= depth);
+        for 0..#(notScheduled*this.g - (1-notScheduled)) {
+          // Check queen's safety
+          for i in 0..#depth {
+            const other_row_pos = parent.board[i];
 
-              if (other_row_pos == parent.board[k] - (depth - i) ||
-                  other_row_pos == parent.board[k] + (depth - i)) {
-                status_loc[pid] = NOT_SAFE;
-              }
-            }
+            const isNotSafe: int = (other_row_pos == parent.board[k] - (depth - i) ||
+              other_row_pos == parent.board[k] + (depth - i));
+
+            status_loc[pid] = isNotSafe * NOT_SAFE + (1-isNotSafe) * status_loc[pid];
           }
         }
       } // end foreach on GPU
