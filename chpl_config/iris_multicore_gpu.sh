@@ -29,10 +29,10 @@ export PATH="$PATH":"$CHPL_HOME/bin/$CHPL_BIN_SUBDIR:$CHPL_HOME/util"
 
 export CHPL_HOST_PLATFORM="linux64"
 export CHPL_HOST_COMPILER="gnu"
-export CHPL_LLVM="bundled" # must be used
-# export CHPL_RT_NUM_THREADS_PER_LOCALE=${SLURM_CPUS_PER_TASK}
-export CHPL_RT_NUM_THREADS_PER_LOCALE=1 # necessary if using CUDA 10
+export CHPL_LLVM="bundled"
+export CHPL_RT_NUM_THREADS_PER_LOCALE=$SLURM_CPUS_PER_TASK
 export CHPL_LOCALE_MODEL="gpu"
+export CHPL_GPU="nvidia"
 
 export GASNET_PHYSMEM_MAX='64 GB'
 
