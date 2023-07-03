@@ -1,11 +1,17 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #include "cuda_runtime.h"
 
+#define BLOCK_SIZE 64
+
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
-// Definition of the N-Queens Node type
+/*******************************************************************************
+Implementation of N-Queens Nodes.
+*******************************************************************************/
+
 #define MAX_QUEENS 15
 
 typedef struct
@@ -14,7 +20,21 @@ typedef struct
   int board[MAX_QUEENS];
 } Node;
 
-// Implementation of a basic single pool
+void initRoot(Node* root, const int N)
+{
+  root->depth = 0;
+  for (int i = 0; i < N; i++) {
+    root->board[i] = i;
+  }
+}
+
+/*******************************************************************************
+Implementation of a dynamic-sized single pool data structure.
+Its initial capacity is 1024, and we reallocate a new container with double
+the capacity when it is full. Since we perform only DFS, it only supports
+'pushBack' and 'popBack' operations.
+*******************************************************************************/
+
 #define CAPACITY 1024
 
 typedef struct
@@ -33,45 +53,34 @@ void initSinglePool(SinglePool* pool)
 
 void pushBack(SinglePool* pool, Node node)
 {
-  if (pool->size < pool->capacity) {
-    pool->elements[pool->size] = node;
-    pool->size++;
-  } else {
-    Node* tmp = (Node*)malloc(pool->capacity * sizeof(Node));
-    memcpy(tmp, pool->elements, pool->capacity * sizeof(Node));
-    free(pool->elements);
-    pool->elements = (Node*)malloc(2 * pool->capacity * sizeof(Node));
-    for (int i = 0; i < pool->capacity; i++) {
-      pool->elements[i] = tmp[i];
-    }
-    pool->capacity = 2 * pool->capacity;
-
-    pool->elements[pool->size] = node;
-    pool->size++;
+  if (pool->size >= pool->capacity) {
+    pool->capacity *= 2;
+    pool->elements = (Node*)realloc(pool->elements, pool->capacity * sizeof(Node));
   }
+
+  pool->elements[pool->size++] = node;
 }
 
 Node popBack(SinglePool* pool, int* hasWork)
 {
   if (pool->size > 0) {
-    Node node = pool->elements[pool->size - 1];
-    pool->size--;
     *hasWork = 1;
-    return node;
+    return pool->elements[--pool->size];
   }
 
-  Node node_default;
-  return node_default;
+  return (Node){0};
 }
 
-void clearSinglePool(SinglePool* pool)
+void deleteSinglePool(SinglePool* pool)
 {
   free(pool->elements);
-  pool->capacity = CAPACITY;
+  pool->capacity = 0;
   pool->size = 0;
 }
 
-// Implementation of the N-Queens search
+/*******************************************************************************
+Implementation of the single-core single-GPU N-Queens search.
+*******************************************************************************/
 
 void parse_parameters(int argc, char* argv[], int* N, int* G, int* minSize, int* maxSize)
 {
@@ -108,7 +117,6 @@ void print_results(const int exploredTree, const int exploredSol, const double t
   printf("=================================================\n");
 }
 
-// Swap two integers
 void swap(int* a, int* b)
 {
   int tmp = *b;
@@ -116,7 +124,7 @@ void swap(int* a, int* b)
   *a = tmp;
 }
 
-// Check queen's safety
+// Check queen's safety.
 int isSafe(const int G, const int* board, const int queen_num, const int row_pos)
 {
   for (int g = 0; g < G; g++) {
@@ -133,6 +141,7 @@ int isSafe(const int G, const int* board, const int queen_num, const int row_pos
   return 1;
 }
 
+// Evaluate and generate children nodes on CPU.
 void decompose(const int N, const int G, const Node parent, int* tree_loc, int* num_sol, SinglePool* pool)
 {
   const int depth = parent.depth;
@@ -143,9 +152,7 @@ void decompose(const int N, const int G, const Node parent, int* tree_loc, int* 
   for (int j = depth; j < N; j++) {
     if (isSafe(G, parent.board, depth, parent.board[j])) {
       Node child;
-      for (int i = 0; i < N; i++) {
-        child.board[i] = parent.board[i];
-      }
+      memcpy(child.board, parent.board, N * sizeof(int));
       swap(&child.board[depth], &child.board[j]);
       child.depth = depth + 1;
       pushBack(pool, child);
@@ -154,33 +161,35 @@ void decompose(const int N, const int G, const Node parent, int* tree_loc, int* 
   }
 }
 
-// Evaluate a bulk of parent nodes on GPU
+// Evaluate a bulk of parent nodes on GPU.
 __global__ void evaluate_gpu(const int N, const int G, const Node* parents_d, int* status_d, const int size)
 {
-  int pid = blockIdx.x * blockDim.x + threadIdx.x;
+  int threadId = blockIdx.x * blockDim.x + threadIdx.x;
 
-  if (pid < size) {
-    const int parentId = pid / N;
-    const int k = pid % N;
+  if (threadId < size) {
+    const int parentId = threadId / N;
+    const int k = threadId % N;
     const Node parent = parents_d[parentId];
     const int depth = parent.depth;
 
-    status_d[pid] = 1;
+    status_d[threadId] = 1;
 
-    const int notScheduled = (int)(k >= depth);
-    for (int g = 0; g < (notScheduled*G - (1-notScheduled)); g++) {
+    // If child 'k' is not scheduled, we evaluate its safety 'G' times, otherwise 0.
+    const int G_notScheduled = G * (k >= depth);
+    for (int g = 0; g < G_notScheduled; g++) {
       for (int i = 0; i < depth; i++) {
         const int other_row_pos = parent.board[i];
         const int isNotSafe = (other_row_pos == parent.board[k] - (depth - i) ||
           other_row_pos == parent.board[k] + (depth - i));
 
-        status_d[pid] = isNotSafe * (-1) + (1-isNotSafe) * status_d[pid];
+        status_d[threadId] *= (1 - isNotSafe);
       }
     }
   }
 }
 
-void process_children(const int N, const Node* parents, const int size, const int* evals,
+// Generate children nodes (evaluated by GPU) on CPU.
+void generate_children(const int N, const Node* parents, const int size, const int* evals,
   int* exploredTree, int* exploredSol, SinglePool* pool)
 {
   for (int i = 0; i < size; i++) {
@@ -193,9 +202,7 @@ void process_children(const int N, const Node* parents, const int size, const in
     for (int j = depth; j < N; j++) {
       if (evals[j + i * N] == 1) {
         Node child;
-        for (int i = 0; i < N; i++) {
-          child.board[i] = parent.board[i];
-        }
+        memcpy(child.board, parent.board, N * sizeof(int));
         swap(&child.board[depth], &child.board[j]);
         child.depth = depth + 1;
         pushBack(pool, child);
@@ -205,66 +212,63 @@ void process_children(const int N, const Node* parents, const int size, const in
   }
 }
 
+// Single-core single-GPU N-Queens search.
 void nqueens_search(const int N, const int G, const int minSize, const int maxSize,
   int* exploredTree, int* exploredSol)
 {
   Node root;
-  root.depth = 0;
-  for (int i = 0; i < N; i++) {
-    root.board[i] = i;
-  }
+  initRoot(&root, N);
 
   SinglePool pool;
   initSinglePool(&pool);
+
   pushBack(&pool, root);
 
   while (1) {
     int hasWork = 0;
     Node parent = popBack(&pool, &hasWork);
-    if (!hasWork) {
-      break;
-    }
+    if (!hasWork) break;
 
     decompose(N, G, parent, exploredTree, exploredSol, &pool);
 
     int poolSize = MIN(pool.size, maxSize);
 
+    // If 'poolSize' is sufficiently large, we offload the pool on GPU.
     if (poolSize >= minSize) {
       Node* parents = (Node*)malloc(poolSize * sizeof(Node));
       for (int i = 0; i < poolSize; i++) {
         int hasWork = 0;
         parents[i] = popBack(&pool, &hasWork);
-        if (!hasWork) {
-          break;
-        }
+        if (!hasWork) break;
       }
-      int* evals = (int*)malloc(N * poolSize * sizeof(int));
+
+      const int evalsSize = N * poolSize;
+      int* evals = (int*)malloc(evalsSize * sizeof(int));
 
       Node* parents_d;
       int* status_d;
 
-      // Offload node evaluation on GPU
       cudaMalloc(&parents_d, poolSize * sizeof(Node));
-      cudaMalloc(&status_d, N * poolSize * sizeof(int));
+      cudaMalloc(&status_d, evalsSize * sizeof(int));
       cudaMemcpy(parents_d, parents, poolSize * sizeof(Node), cudaMemcpyHostToDevice);
 
-      int blockSize = 64;
-      int nbBlocks = (N * poolSize / blockSize) + (((N * poolSize) % blockSize) == 0 ? 0 : 1);
+      int nbBlocks = (evalsSize / BLOCK_SIZE) + ((evalsSize % BLOCK_SIZE) == 0 ? 0 : 1);
 
-      evaluate_gpu<<<nbBlocks, blockSize>>>(N, G, parents_d, status_d, N * poolSize);
+      evaluate_gpu<<<nbBlocks, BLOCK_SIZE>>>(N, G, parents_d, status_d, evalsSize);
 
-      cudaMemcpy(evals, status_d, N * poolSize * sizeof(int), cudaMemcpyDeviceToHost);
+      cudaMemcpy(evals, status_d, evalsSize * sizeof(int), cudaMemcpyDeviceToHost);
 
       cudaFree(parents_d);
       cudaFree(status_d);
 
-      process_children(N, parents, poolSize, evals, exploredTree, exploredSol, &pool);
+      generate_children(N, parents, poolSize, evals, exploredTree, exploredSol, &pool);
 
       free(parents);
       free(evals);
     }
   }
-  clearSinglePool(&pool);
+
+  deleteSinglePool(&pool);
 }
 
 int main(int argc, char* argv[])
