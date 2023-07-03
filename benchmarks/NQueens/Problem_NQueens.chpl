@@ -8,28 +8,27 @@ module Problem_NQueens
 
   use Problem;
 
-  const SAFE     =  1;
-  const NOT_SAFE = -1;
+  const SAFE = 1;
 
   class Problem_NQueens : Problem
   {
     var N: int; // size of the problem (number of queens)
-    var g: int; // number of safety check(s) per evaluation
+    var G: int; // number of safety check(s) per evaluation
 
-    proc init(const n: int, const G: int): void
+    proc init(const n: int, const g: int): void
     {
       this.N = n;
-      this.g = G;
+      this.G = g;
     }
 
     override proc copy()
     {
-      return new Problem_NQueens(this.N, this.g);
+      return new Problem_NQueens(this.N, this.G);
     }
 
     proc isSafe(const board: c_ptr(c_int), const queen_num: int, const row_pos: c_int): bool
     {
-      for 0..#this.g {
+      for 0..#this.G {
         // For each queen before this one
         for i in 0..#queen_num {
           // Get the row position
@@ -46,6 +45,7 @@ module Problem_NQueens
       return true;
     }
 
+    // Evaluate and generate children nodes on CPU.
     override proc decompose(type Node, const parent: Node, ref tree_loc: int, ref num_sol: int,
       ref max_depth: int, best: atomic int, ref best_task: int): list
     {
@@ -69,6 +69,7 @@ module Problem_NQueens
       return children;
     }
 
+    // Evaluate a bulk of parent nodes on GPU.
     override proc evaluate_gpu(type Node, const parents: [] Node): [] int
     {
       const size: int = parents.size;
@@ -85,16 +86,16 @@ module Problem_NQueens
         const parent = parents_loc[parentId];
         const depth = parent.depth;
 
-        const notScheduled: int = (k >= depth);
-        for 0..#(notScheduled*this.g - (1-notScheduled)) {
+        // If child 'k' is not scheduled, we evaluate its safety 'G' times, otherwise 0.
+        const G_notScheduled: int = this.G * (k >= depth);
+        for 0..#G_notScheduled {
           // Check queen's safety
           for i in 0..#depth {
             const other_row_pos = parent.board[i];
-
             const isNotSafe: int = (other_row_pos == parent.board[k] - (depth - i) ||
               other_row_pos == parent.board[k] + (depth - i));
 
-            status_loc[pid] = isNotSafe * NOT_SAFE + (1-isNotSafe) * status_loc[pid];
+            status_loc[pid] *= (1 - isNotSafe);
           }
         }
       } // end foreach on GPU
@@ -102,7 +103,8 @@ module Problem_NQueens
       return status_loc;
     }
 
-    override proc process_children(type Node, const parents: [] Node, const status: [] int, ref tree_loc: int,
+    // Generate children nodes (evaluated by GPU) on CPU.
+    override proc generate_children(type Node, const parents: [] Node, const status: [] int, ref tree_loc: int,
       ref num_sol: int, ref max_depth: int, best: atomic int, ref best_task: int): list
     {
       var children: list(Node);
@@ -148,7 +150,7 @@ module Problem_NQueens
     {
       writeln("\n=================================================");
       writeln("Resolution of the ", this.N, "-Queens instance");
-      writeln("  with ", this.g, " safety check(s) per evaluation");
+      writeln("  with ", this.G, " safety check(s) per evaluation");
       writeln("=================================================");
     }
 
@@ -171,7 +173,7 @@ module Problem_NQueens
 
     override proc output_filepath(): string
     {
-      var tup = ("./chpl_nqueens_", this.N:string, "_", this.g:string, ".txt");
+      var tup = ("./chpl_nqueens_", this.N:string, "_", this.G:string, ".txt");
       return "".join(tup);
     }
 

@@ -236,10 +236,10 @@ module Problem_PFSP
       }
     }
 
-    //TODO: implement process_children_lb1
-    //TODO: implement process_children_lb1_d
+    //TODO: implement generate_children_lb1
+    //TODO: implement generate_children_lb1_d
 
-    proc process_children_lb2(type Node, const parents: [] Node, const status: [] int, ref tree_loc: int,
+    proc generate_children_lb2(type Node, const parents: [] Node, const status: [] int, ref tree_loc: int,
       ref num_sol: int, ref max_depth: int, best: atomic int, ref best_task: int): list
     {
       var children: list(Node);
@@ -249,18 +249,18 @@ module Problem_PFSP
       return children;
     }
 
-    override proc process_children(type Node, const parents: [] Node, const status: [] int, ref tree_loc: int,
+    override proc generate_children(type Node, const parents: [] Node, const status: [] int, ref tree_loc: int,
       ref num_sol: int, ref max_depth: int, best: atomic int, ref best_task: int): list
     {
       select lb_name {
         /* when "lb1" {
-          return process_children_lb1(Node, parents, status, tree_loc, num_sol, max_depth, best, best_task);
+          return generate_children_lb1(Node, parents, status, tree_loc, num_sol, max_depth, best, best_task);
         } */
         /* when "lb1_d" {
-          return process_children_lb1_d(Node, parents, status, tree_loc, num_sol, max_depth, best, best_task);
+          return generate_children_lb1_d(Node, parents, status, tree_loc, num_sol, max_depth, best, best_task);
         } */
         when "lb2" {
-          return process_children_lb2(Node, parents, status, tree_loc, num_sol, max_depth, best, best_task);
+          return generate_children_lb2(Node, parents, status, tree_loc, num_sol, max_depth, best, best_task);
         }
         otherwise {
           halt("Error - Unknown lower bound");
