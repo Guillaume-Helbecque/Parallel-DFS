@@ -161,7 +161,7 @@ module search_multicore_gpu
             evals = problem.evaluate_gpu(Node, parents);
           }
 
-          var children = generate.process_children(Node, parents, evals, tree_loc,
+          var children = problem.generate_children(Node, parents, evals, tree_loc,
             num_sol, max_depth, best, best_task);
 
           bag.addBulk(children, taskId);
