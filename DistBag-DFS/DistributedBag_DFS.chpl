@@ -323,7 +323,10 @@ module DistributedBag_DFS
       return bag!.remove(taskId);
     }
 
-    // TODO: implement 'removeBulk'
+    proc removeBulk_(n: int, taskId: int): (bool, [0..#n] eltType)
+    {
+      return bag!.removeBulk_(n, taskId);
+    }
 
     /*
       Obtain the number of elements held in all bags across all nodes. This method
@@ -735,6 +738,23 @@ module DistributedBag_DFS
 
       halt("DistributedBag_DFS Internal Error: DEADCODE.");
     }
+
+    // This procedure is only callable by the owner thread
+    proc removeBulk_(const n: int, const taskId: int)//: (bool, [] eltType)
+    {
+      ref segment = segments[taskId];
+      var default: [0..-1] eltType;
+
+      // if the private region contains enough elements to be removed...
+      if (segment.tail - segment.o_split >= n) {
+        var elts: [0..#n] eltType;
+        for elt in elts do elt = segment.takeElement()[1];
+
+        return (true, elts);
+      }
+
+      return (false, default);
+    }
   } // end 'Bag' class
 
   /*
@@ -842,7 +862,7 @@ module DistributedBag_DFS
       // allocate a larger block.
       if (block.tailId + size > block.cap) {
         //TODO: use divceilpos?
-        const neededCap = block.cap*2**divceil(block.tailId + size, block.cap);
+        const neededCap = block.cap*2**divCeil(block.tailId + size, block.cap);
         if (neededCap >= distributedBagMaxBlockCap) {
           realSize = distributedBagMaxBlockCap - block.tailId;
         }

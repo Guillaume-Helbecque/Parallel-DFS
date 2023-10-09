@@ -13,9 +13,25 @@ module Problem
       halt("Error - decompose() not implemented");
     }
 
+    proc evaluate_gpu(type Node, const parents: [] Node)
+    {
+      halt("Error - evaluate_gpu() not implemented");
+    }
+
+    proc generate_children(type Node, const parents: [] Node, const status: [] int, ref tree_loc: int,
+      ref num_sol: int, ref max_depth: int, best: atomic int, ref best_task: int)
+    {
+      halt("Error - process_children() not implemented");
+    }
+
     proc getInitBound(): int
     {
       halt("Error - getInitBound() not implemented");
+    }
+
+    proc length
+    {
+      halt("Error - length not implemented");
     }
 
     // =======================

@@ -6,31 +6,37 @@ module Problem_NQueens
 
   use Problem;
 
+  const SAFE = 1;
+
   class Problem_NQueens : Problem
   {
     var N: int; // number of queens
+    var G: int; // number of safety check(s) per evaluation
 
-    proc init(const n: int): void
+    proc init(const n: int, const g: int): void
     {
       this.N = n;
+      this.G = g;
     }
 
     override proc copy()
     {
-      return new Problem_NQueens(this.N);
+      return new Problem_NQueens(this.N, this.G);
     }
 
     proc isSafe(const board: c_ptr(c_int), const queen_num: int, const row_pos: c_int): bool
     {
-      // For each queen before this one
-      for i in 0..#queen_num {
-        // Get the row position
-        const other_row_pos = board[i];
+      for 0..#this.G {
+        // For each queen before this one
+        for i in 0..#queen_num {
+          // Get the row position
+          const other_row_pos = board[i];
 
-        // Check diagonals
-        if (other_row_pos == row_pos - (queen_num - i) ||
-            other_row_pos == row_pos + (queen_num - i)) {
-          return false;
+          // Check diagonals
+          if (other_row_pos == row_pos - (queen_num - i) ||
+              other_row_pos == row_pos + (queen_num - i)) {
+            return false;
+          }
         }
       }
 
@@ -60,10 +66,77 @@ module Problem_NQueens
       return children;
     }
 
+    // Evaluate a bulk of parent nodes on GPU.
+    override proc evaluate_gpu(type Node, const parents: [] Node): [] int
+    {
+      const size: int = parents.size;
+
+      var status_loc: [0..#this.N*size] int = SAFE;
+      var parents_loc: [0..#size] Node;// = parents; // Github issue #22519
+      for i in 0..#size do parents_loc[i] = parents[i]; // WORKAROUND
+
+      @assertOnGpu
+      foreach pid in 0..#this.N*size {
+
+        const parentId = pid / this.N;
+        const k = pid % this.N;
+        const parent = parents_loc[parentId];
+        const depth = parent.depth;
+
+        // If child 'k' is not scheduled, we evaluate its safety 'G' times, otherwise 0.
+        const G_notScheduled: int = this.G * (k >= depth);
+        for 0..#G_notScheduled {
+          // Check queen's safety
+          for i in 0..#depth {
+            const other_row_pos = parent.board[i];
+            const isNotSafe: int = (other_row_pos == parent.board[k] - (depth - i) ||
+              other_row_pos == parent.board[k] + (depth - i));
+
+            status_loc[pid] *= (1 - isNotSafe);
+          }
+        }
+      } // end foreach on GPU
+
+      return status_loc;
+    }
+
+    // Generate children nodes (evaluated by GPU) on CPU.
+    override proc generate_children(type Node, const parents: [] Node, const status: [] int, ref tree_loc: int,
+      ref num_sol: int, ref max_depth: int, best: atomic int, ref best_task: int): list(?)
+    {
+      var children: list(Node);
+
+      // Generate children if any
+      for parentId in parents.domain {
+        const parent = parents[parentId];
+        const depth = parent.depth;
+
+        if (depth == this.N) {
+          num_sol += 1;
+        }
+        for j in depth..this.N-1 {
+          if (status[j + parentId * this.N] == SAFE) {
+            var child = new Node(parent);
+            swap(child.board[depth], child.board[j]);
+            child.depth += 1;
+            children.pushBack(child);
+            tree_loc += 1;
+          }
+        }
+      }
+
+      return children;
+    }
+
     // No bounding in NQueens
     override proc getInitBound(): int
     {
       return 0;
+    }
+
+    override proc length
+    {
+      return this.N;
     }
 
     // =======================
@@ -74,6 +147,7 @@ module Problem_NQueens
     {
       writeln("\n=================================================");
       writeln("Resolution of the ", this.N, "-Queens instance");
+      writeln("  with ", this.G, " safety check(s) per evaluation");
       writeln("=================================================");
     }
 
@@ -96,13 +170,14 @@ module Problem_NQueens
 
     override proc output_filepath(): string
     {
-      return "./chpl_nqueens_" + this.N:string + ".txt";
+      return "./chpl_nqueens_" + this.N:string + "_" + this.G:string + ".txt";
     }
 
     override proc help_message(): void
     {
       writeln("\n  N-Queens Benchmark Parameter:\n");
       writeln("   --N   int   problem size (number of queens)\n");
+      writeln("   --g   int   Number of safety check(s) per evaluation\n");
     }
 
   } // end class
