@@ -10,7 +10,12 @@ module Node_NQueens
 
   record Node_NQueens
   {
-    var board: c_array(c_int, NMax);
+    /*
+      NOTE: Using tuple instead of c_array allows bulk transfer between host and
+      device, and highly improves the performance using GPUs.
+      See Chapel Github issue #22519.
+    */
+    var board: NMax*c_int;
     var depth: int;
 
     // default-initializer

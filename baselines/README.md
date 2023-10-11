@@ -7,7 +7,7 @@ Nodes are managed using a hand-coded single pool.
 
 To compile and execute:
 ```
-nvcc -O3 nqueens_cuda.cu
+nvcc -O3 nqueens_cuda.cu -arch=sm_XX
 ./a.out <N> <g> <minSize> <maxSize>
 ```
 where:

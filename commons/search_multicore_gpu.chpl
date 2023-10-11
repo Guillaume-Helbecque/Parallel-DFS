@@ -19,7 +19,7 @@ module search_multicore_gpu
   proc search_multicore_gpu(type Node, problem, const saveTime: bool, const activeSet: bool): void
   {
     const numTasks = here.maxTaskPar;
-    const numGpus = here.gpus.domain.high;
+    const numGpus = here.gpus.domain.high + 1; // domains are 0-based
 
     // Global variables (best solution found and termination)
     var best: atomic int = problem.getInitBound();

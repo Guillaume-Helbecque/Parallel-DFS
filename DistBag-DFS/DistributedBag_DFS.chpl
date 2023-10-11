@@ -827,7 +827,7 @@ module DistributedBag_DFS
         if (block.cap == distributedBagMaxBlockCap) then
           return false;
         lock_block.readFE();
-        block.cap = min(distributedBagMaxBlockCap, 2*block.cap);
+        block.cap *= 2;
         block.dom = {0..#block.cap};
         lock_block.writeEF(true);
       }
@@ -856,15 +856,13 @@ module DistributedBag_DFS
 
     inline proc ref addElements(elts): int
     {
-      const size = elts.size;
-      var realSize = size;
+      var size = elts.size;
 
       // allocate a larger block.
       if (block.tailId + size > block.cap) {
-        //TODO: use divceilpos?
-        const neededCap = block.cap*2**divCeil(block.tailId + size, block.cap);
+        const neededCap = block.cap*2**ceil(log2((block.tailId + size) / block.cap:real)):int;
         if (neededCap >= distributedBagMaxBlockCap) {
-          realSize = distributedBagMaxBlockCap - block.tailId;
+          size = distributedBagMaxBlockCap - block.tailId;
         }
         lock_block.readFE();
         block.cap = min(distributedBagMaxBlockCap, neededCap);
@@ -872,19 +870,13 @@ module DistributedBag_DFS
         lock_block.writeEF(true);
       }
 
-      // TODO: find a better way to do the following.
-      var c = 0;
-      for elt in elts {
-        if (c >= realSize) then break;
-        block.pushTail(elt);
-        c += 1;
-      }
-      tail += realSize;
+      for elt in elts[0..#size] do block.pushTail(elt);
+      tail += size;
 
       // if there is a split request...
       if split_request.read() then split_release();
 
-      return realSize;
+      return size;
     }
 
     // TODO: implement 'addElementsPtr'

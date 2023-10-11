@@ -74,8 +74,6 @@ Node popBack(SinglePool* pool, int* hasWork)
 void deleteSinglePool(SinglePool* pool)
 {
   free(pool->elements);
-  pool->capacity = 0;
-  pool->size = 0;
 }
 
 /*******************************************************************************
@@ -180,7 +178,7 @@ __global__ void evaluate_gpu(const int N, const int G, const Node* parents_d, in
       for (int i = 0; i < depth; i++) {
         const int other_row_pos = parent.board[i];
         const int isNotSafe = (other_row_pos == parent.board[k] - (depth - i) ||
-          other_row_pos == parent.board[k] + (depth - i));
+                               other_row_pos == parent.board[k] + (depth - i));
 
         status_d[threadId] *= (1 - isNotSafe);
       }
@@ -224,6 +222,8 @@ void nqueens_search(const int N, const int G, const int minSize, const int maxSi
 
   pushBack(&pool, root);
 
+  int count = 0;
+
   while (1) {
     int hasWork = 0;
     Node parent = popBack(&pool, &hasWork);
@@ -252,9 +252,11 @@ void nqueens_search(const int N, const int G, const int minSize, const int maxSi
       cudaMalloc(&status_d, evalsSize * sizeof(int));
       cudaMemcpy(parents_d, parents, poolSize * sizeof(Node), cudaMemcpyHostToDevice);
 
-      int nbBlocks = (evalsSize / BLOCK_SIZE) + ((evalsSize % BLOCK_SIZE) == 0 ? 0 : 1);
+      int nbBlocks = ceil((double)evalsSize / BLOCK_SIZE);
 
+      count += 1;
       evaluate_gpu<<<nbBlocks, BLOCK_SIZE>>>(N, G, parents_d, status_d, evalsSize);
+      cudaDeviceSynchronize();
 
       cudaMemcpy(evals, status_d, evalsSize * sizeof(int), cudaMemcpyDeviceToHost);
 
@@ -267,6 +269,9 @@ void nqueens_search(const int N, const int G, const int minSize, const int maxSi
       free(evals);
     }
   }
+
+  printf("\nExploration terminated.\n");
+  printf("Cuda kernel calls: %d\n", count);
 
   deleteSinglePool(&pool);
 }

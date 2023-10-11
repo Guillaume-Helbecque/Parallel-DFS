@@ -5,6 +5,7 @@ module main_queens
   use search_sequential;
   use search_multicore;
   use search_distributed;
+  use search_sequential_gpu;
   use search_multicore_gpu;
 
   // NQueens-specific modules
@@ -46,6 +47,10 @@ module main_queens
       }
       when "distributed" {
         search_distributed(Node_NQueens, nqueens, saveTime, activeSet);
+      }
+      when "sequential-gpu" {
+        if activeSet then warning("Cannot use `activeSet` in sequential mode.");
+        search_sequential_gpu(Node_NQueens, nqueens, saveTime);
       }
       when "multicore-gpu" {
         search_multicore_gpu(Node_NQueens, nqueens, saveTime, activeSet);

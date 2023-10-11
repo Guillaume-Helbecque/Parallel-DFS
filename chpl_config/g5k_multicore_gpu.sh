@@ -29,8 +29,10 @@ export CHPL_LLVM=bundled
 
 NUM_T_LOCALE=$(cat /proc/cpuinfo | grep processor | wc -l)
 export CHPL_RT_NUM_THREADS_PER_LOCALE=$NUM_T_LOCALE
+export CHPL_RT_NUM_GPUS_PER_LOCALE=2
 export CHPL_LOCALE_MODEL="gpu"
 export CHPL_GPU="nvidia"
+export CHPL_GPU_ARCH="sm_60"
 
 export GASNET_PHYSMEM_MAX='64 GB'
 

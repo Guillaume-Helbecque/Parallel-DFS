@@ -24,7 +24,7 @@ module Problem_NQueens
       return new Problem_NQueens(this.N, this.G);
     }
 
-    proc isSafe(const board: c_ptr(c_int), const queen_num: int, const row_pos: c_int): bool
+    proc isSafe(const board, const queen_num: int, const row_pos: c_int): bool
     {
       for 0..#this.G {
         // For each queen before this one
@@ -72,8 +72,7 @@ module Problem_NQueens
       const size: int = parents.size;
 
       var status_loc: [0..#this.N*size] int = SAFE;
-      var parents_loc: [0..#size] Node;// = parents; // Github issue #22519
-      for i in 0..#size do parents_loc[i] = parents[i]; // WORKAROUND
+      var parents_loc: [0..#size] Node = parents;
 
       @assertOnGpu
       foreach pid in 0..#this.N*size {
