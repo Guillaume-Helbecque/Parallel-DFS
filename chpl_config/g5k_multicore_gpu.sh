@@ -4,7 +4,7 @@
 # national Grid5000 testbed (https://www.grid5000.fr/w/Grid5000:Home).
 
 # Load gcc, cuda and cmake
-module load gcc/12.2.0_gcc-10.4.0
+module load gcc/10.4.0_gcc-10.4.0
 module load cmake/3.23.3_gcc-10.4.0
 module load cuda/11.7.1_gcc-10.4.0
 

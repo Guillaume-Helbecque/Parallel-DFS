@@ -154,7 +154,6 @@ module search_multicore_gpu
           var evals: [0..#problem.length*parents.size] int = noinit;
 
           // Offload on GPUs
-          /* writeln("Offloaded on GPU: ", size); */
           on here.gpus[hostId] {
             evals = problem.evaluate_gpu(Node, parents);
           }
@@ -182,7 +181,10 @@ module search_multicore_gpu
     // ========
 
     writeln("\nExploration terminated.");
-    writeln("Kernel launches: ", getGpuDiagnostics().kernel_launch);
+    writeln("kernel_launch: ", getGpuDiagnostics().kernel_launch);
+    writeln("host_to_device: ", getGpuDiagnostics().host_to_device);
+    writeln("device_to_host: ", getGpuDiagnostics().device_to_host);
+    writeln("device_to_device: ", getGpuDiagnostics().device_to_device);
 
     if saveTime {
       var path = problem.output_filepath();

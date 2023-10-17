@@ -6,7 +6,7 @@ module Node_NQueens
     Maximum size of the problem. The exact number of N-Queens solutions is only
     known for N < 28.
   */
-  config param NMax: int = 27;
+  config param NMax: int = 21;
 
   record Node_NQueens
   {

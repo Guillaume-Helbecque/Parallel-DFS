@@ -12,7 +12,7 @@
 Implementation of N-Queens Nodes.
 *******************************************************************************/
 
-#define MAX_QUEENS 15
+#define MAX_QUEENS 21
 
 typedef struct
 {
@@ -106,11 +106,12 @@ void print_settings(const int N, const int G)
   printf("=================================================\n");
 }
 
-void print_results(const int exploredTree, const int exploredSol, const double timer)
+void print_results(const unsigned long long int exploredTree,
+  const unsigned long long int exploredSol, const double timer)
 {
   printf("\n=================================================\n");
-  printf("Size of the explored tree: %d\n", exploredTree);
-  printf("Number of explored solutions: %d\n", exploredSol);
+  printf("Size of the explored tree: %llu\n", exploredTree);
+  printf("Number of explored solutions: %llu\n", exploredSol);
   printf("Elapsed time: %.4f [s]\n", timer);
   printf("=================================================\n");
 }
@@ -140,7 +141,8 @@ int isSafe(const int G, const int* board, const int queen_num, const int row_pos
 }
 
 // Evaluate and generate children nodes on CPU.
-void decompose(const int N, const int G, const Node parent, int* tree_loc, int* num_sol, SinglePool* pool)
+void decompose(const int N, const int G, const Node parent,
+  unsigned long long int* tree_loc, unsigned long long int* num_sol, SinglePool* pool)
 {
   const int depth = parent.depth;
 
@@ -188,7 +190,7 @@ __global__ void evaluate_gpu(const int N, const int G, const Node* parents_d, in
 
 // Generate children nodes (evaluated by GPU) on CPU.
 void generate_children(const int N, const Node* parents, const int size, const int* evals,
-  int* exploredTree, int* exploredSol, SinglePool* pool)
+  unsigned long long int* exploredTree, unsigned long long int* exploredSol, SinglePool* pool)
 {
   for (int i = 0; i < size; i++) {
     const Node parent = parents[i];
@@ -212,7 +214,7 @@ void generate_children(const int N, const Node* parents, const int size, const i
 
 // Single-core single-GPU N-Queens search.
 void nqueens_search(const int N, const int G, const int minSize, const int maxSize,
-  int* exploredTree, int* exploredSol)
+  unsigned long long int* exploredTree, unsigned long long int* exploredSol)
 {
   Node root;
   initRoot(&root, N);
@@ -282,8 +284,8 @@ int main(int argc, char* argv[])
   parse_parameters(argc, argv, &N, &G, &minSize, &maxSize);
   print_settings(N, G);
 
-  int exploredTree = 0;
-  int exploredSol = 0;
+  unsigned long long int exploredTree = 0;
+  unsigned long long int exploredSol = 0;
 
   clock_t startTime = clock();
 

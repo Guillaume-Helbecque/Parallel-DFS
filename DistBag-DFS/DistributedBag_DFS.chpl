@@ -824,8 +824,10 @@ module DistributedBag_DFS
     {
       // allocate a larger block with the double capacity.
       if block.isFull {
-        if (block.cap == distributedBagMaxBlockCap) then
+        if (block.cap == distributedBagMaxBlockCap) {
+          warning("maximum capacity reached: some elements may have been missed.");
           return false;
+        }
         lock_block.readFE();
         block.cap *= 2;
         block.dom = {0..#block.cap};
@@ -862,7 +864,8 @@ module DistributedBag_DFS
       if (block.tailId + size > block.cap) {
         const neededCap = block.cap*2**ceil(log2((block.tailId + size) / block.cap:real)):int;
         if (neededCap >= distributedBagMaxBlockCap) {
-          size = distributedBagMaxBlockCap - block.tailId;
+          warning("maximum capacity reached: some elements may have been missed.");
+          size = distributedBagMaxBlockCap - block.tailId - 1;
         }
         lock_block.readFE();
         block.cap = min(distributedBagMaxBlockCap, neededCap);

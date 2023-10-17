@@ -72,7 +72,7 @@ module Problem_NQueens
       const size: int = parents.size;
 
       var status_loc: [0..#this.N*size] int = SAFE;
-      var parents_loc: [0..#size] Node = parents;
+      var parents_loc = parents;
 
       @assertOnGpu
       foreach pid in 0..#this.N*size {
@@ -89,7 +89,7 @@ module Problem_NQueens
           for i in 0..#depth {
             const other_row_pos = parent.board[i];
             const isNotSafe: int = (other_row_pos == parent.board[k] - (depth - i) ||
-              other_row_pos == parent.board[k] + (depth - i));
+                                    other_row_pos == parent.board[k] + (depth - i));
 
             status_loc[pid] *= (1 - isNotSafe);
           }
@@ -116,7 +116,8 @@ module Problem_NQueens
         for j in depth..this.N-1 {
           if (status[j + parentId * this.N] == SAFE) {
             var child = new Node(parent);
-            swap(child.board[depth], child.board[j]);
+            child.board[depth] <=> child.board[j];
+            /* swap(child.board[depth], child.board[j]); */
             child.depth += 1;
             children.pushBack(child);
             tree_loc += 1;
