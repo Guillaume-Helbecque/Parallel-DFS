@@ -1,5 +1,6 @@
 /*
   C+Cuda backtracking algorithm to solve instances of the N-Queens problem.
+  This version is a variant of nqueens_cuda.cu exploiting unified memory features.
 */
 
 #include <stdio.h>
@@ -241,7 +242,9 @@ void nqueens_search(const int N, const int G, const int minSize, const int maxSi
 
     // If 'poolSize' is sufficiently large, we offload the pool on GPU.
     if (poolSize >= minSize) {
-      Node* parents = (Node*)malloc(poolSize * sizeof(Node));
+      Node* parents;
+      cudaMallocManaged(&parents, poolSize * sizeof(Node));
+
       for (int i = 0; i < poolSize; i++) {
         int hasWork = 0;
         parents[i] = popBack(&pool, &hasWork);
@@ -249,30 +252,19 @@ void nqueens_search(const int N, const int G, const int minSize, const int maxSi
       }
 
       const int evalsSize = N * poolSize;
-      int* evals = (int*)malloc(evalsSize * sizeof(int));
-
-      Node* parents_d;
-      int* status_d;
-
-      cudaMalloc(&parents_d, poolSize * sizeof(Node));
-      cudaMalloc(&status_d, evalsSize * sizeof(int));
-      cudaMemcpy(parents_d, parents, poolSize * sizeof(Node), cudaMemcpyHostToDevice);
+      int* evals;
+      cudaMallocManaged(&evals, evalsSize * sizeof(int));
 
       int nbBlocks = ceil((double)evalsSize / BLOCK_SIZE);
 
       count += 1;
-      evaluate_gpu<<<nbBlocks, BLOCK_SIZE>>>(N, G, parents_d, status_d, evalsSize);
+      evaluate_gpu<<<nbBlocks, BLOCK_SIZE>>>(N, G, parents, evals, evalsSize);
       cudaDeviceSynchronize();
-
-      cudaMemcpy(evals, status_d, evalsSize * sizeof(int), cudaMemcpyDeviceToHost);
-
-      cudaFree(parents_d);
-      cudaFree(status_d);
 
       generate_children(N, parents, poolSize, evals, exploredTree, exploredSol, &pool);
 
-      free(parents);
-      free(evals);
+      cudaFree(parents);
+      cudaFree(evals);
     }
   }
 
