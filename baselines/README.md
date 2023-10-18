@@ -2,12 +2,14 @@
 
 ## N-Queens C+CUDA
 
-We implemented a C+CUDA version of the single-core single-GPU accelerated N-Queens search.
-Nodes are managed using a hand-coded single pool.
+We implemented two C+CUDA versions of the single-core single-GPU accelerated N-Queens
+search: `nqueens_cuda.cu` uses explicit data transfers between host and device, while
+`nqueens_cuda_unified_mem.cu` exploits unified memory features.
+Nodes are managed using a hand-coded work pool.
 
 To compile and execute:
 ```
-nvcc -O3 nqueens_cuda.cu -arch=sm_XX
+nvcc -O3 nqueens_cuda[_unified_mem].cu -arch=sm_XX
 ./a.out <N> <g> <minSize> <maxSize>
 ```
 where:
