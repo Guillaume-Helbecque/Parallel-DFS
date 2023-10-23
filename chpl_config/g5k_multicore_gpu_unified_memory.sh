@@ -11,7 +11,7 @@ module load cuda/11.7.1_gcc-10.4.0
 export HERE=$(pwd)
 
 export CHPL_VERSION=1.32.0
-export CHPL_HOME=~/chapel-${CHPL_VERSION}MCG
+export CHPL_HOME=~/chapel-${CHPL_VERSION}MCG_unified_memory
 
 # Download Chapel if not found
 if [ ! -d "$CHPL_HOME" ]; then
@@ -33,6 +33,7 @@ export CHPL_RT_NUM_GPUS_PER_LOCALE=2
 export CHPL_LOCALE_MODEL="gpu"
 export CHPL_GPU="nvidia"
 export CHPL_GPU_ARCH="sm_60"
+export CHPL_GPU_MEM_STRATEGY="unified_memory"
 
 export GASNET_PHYSMEM_MAX='64 GB'
 
