@@ -6,7 +6,7 @@ module Problem_NQueens
 
   use Problem;
 
-  const SAFE = 1;
+  const SAFE: uint(8) = 1;
 
   class Problem_NQueens : Problem
   {
@@ -24,7 +24,7 @@ module Problem_NQueens
       return new Problem_NQueens(this.N, this.G);
     }
 
-    proc isSafe(const board, const queen_num: int, const row_pos: c_int): bool
+    proc isSafe(const board, const queen_num: uint(8), const row_pos: uint(8)): uint(8)
     {
       for 0..#this.G {
         // For each queen before this one
@@ -44,7 +44,7 @@ module Problem_NQueens
     }
 
     override proc decompose(type Node, const parent: Node, ref tree_loc: int, ref num_sol: int,
-      ref max_depth: int, best: atomic int, ref best_task: int): list(?)
+      ref max_depth: int, best: atomic int, ref best_task: int): list(Node)
     {
       var children: list(Node);
 
@@ -56,7 +56,7 @@ module Problem_NQueens
       for j in depth..this.N-1 {
         if isSafe(parent.board, depth, parent.board[j]) {
           var child = new Node(parent);
-          swap(child.board[depth], child.board[j]);
+          child.board[depth] <=> child.board[j];
           child.depth += 1;
           children.pushBack(child);
           tree_loc += 1;
@@ -67,19 +67,19 @@ module Problem_NQueens
     }
 
     // Evaluate a bulk of parent nodes on GPU.
-    override proc evaluate_gpu(type Node, const parents: [] Node): [] int
+    override proc evaluate_gpu(type Node, const parents: [] Node): [] uint(8)
     {
       const size: int = parents.size;
 
-      var status_loc: [0..#this.N*size] int = SAFE;
-      var parents_loc = parents;
+      var evals_d: [0..#this.N*size] uint(8) = SAFE;
+      var parents_d = parents;
 
       @assertOnGpu
       foreach pid in 0..#this.N*size {
 
         const parentId = pid / this.N;
         const k = pid % this.N;
-        const parent = parents_loc[parentId];
+        const parent = parents_d[parentId];
         const depth = parent.depth;
 
         // If child 'k' is not scheduled, we evaluate its safety 'G' times, otherwise 0.
@@ -91,17 +91,17 @@ module Problem_NQueens
             const isNotSafe: int = (other_row_pos == parent.board[k] - (depth - i) ||
                                     other_row_pos == parent.board[k] + (depth - i));
 
-            status_loc[pid] *= (1 - isNotSafe);
+            evals_d[pid] *= (1 - isNotSafe):uint(8);
           }
         }
       } // end foreach on GPU
 
-      return status_loc;
+      return evals_d;
     }
 
     // Generate children nodes (evaluated by GPU) on CPU.
-    override proc generate_children(type Node, const parents: [] Node, const status: [] int, ref tree_loc: int,
-      ref num_sol: int, ref max_depth: int, best: atomic int, ref best_task: int): list(?)
+    override proc generate_children(type Node, const parents: [] Node, const evals: [] uint(8), ref tree_loc: int,
+      ref num_sol: int, ref max_depth: int, best: atomic int, ref best_task: int): list(Node)
     {
       var children: list(Node);
 
@@ -114,10 +114,9 @@ module Problem_NQueens
           num_sol += 1;
         }
         for j in depth..this.N-1 {
-          if (status[j + parentId * this.N] == SAFE) {
+          if (evals[j + parentId * this.N] == SAFE) {
             var child = new Node(parent);
             child.board[depth] <=> child.board[j];
-            /* swap(child.board[depth], child.board[j]); */
             child.depth += 1;
             children.pushBack(child);
             tree_loc += 1;

@@ -59,7 +59,7 @@ module search_sequential_gpu
         var parents: [0..#size] Node;
         for p in parents.domain do parents[p] = pool.popBack();
 
-        var evals: [0..#problem.length*parents.size] int = noinit;
+        var evals: [0..#problem.length*parents.size] uint(8) = noinit;
 
         // Offload on GPUs
         on here.gpus[0] {

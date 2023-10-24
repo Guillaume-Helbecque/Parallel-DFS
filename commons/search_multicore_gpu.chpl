@@ -151,7 +151,7 @@ module search_multicore_gpu
         if (size >= minSize) {
           var (hasWork, parents) = bag.removeBulk_(size, taskId);
           if !hasWork then continue;
-          var evals: [0..#problem.length*parents.size] int = noinit;
+          var evals: [0..#problem.length*parents.size] uint(8) = noinit;
 
           // Offload on GPUs
           on here.gpus[hostId] {

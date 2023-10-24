@@ -5,11 +5,12 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <time.h>
 #include "cuda_runtime.h"
 
-#define BLOCK_SIZE 64
+#define BLOCK_SIZE 512
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
@@ -21,14 +22,14 @@ Implementation of N-Queens Nodes.
 
 typedef struct
 {
-  int depth;
-  int board[MAX_QUEENS];
+  uint8_t depth;
+  uint8_t board[MAX_QUEENS];
 } Node;
 
 void initRoot(Node* root, const int N)
 {
   root->depth = 0;
-  for (int i = 0; i < N; i++) {
+  for (uint8_t i = 0; i < N; i++) {
     root->board[i] = i;
   }
 }
@@ -121,19 +122,19 @@ void print_results(const unsigned long long int exploredTree,
   printf("=================================================\n");
 }
 
-void swap(int* a, int* b)
+void swap(uint8_t* a, uint8_t* b)
 {
-  int tmp = *b;
+  uint8_t tmp = *b;
   *b = *a;
   *a = tmp;
 }
 
 // Check queen's safety.
-int isSafe(const int G, const int* board, const int queen_num, const int row_pos)
+int isSafe(const int G, const uint8_t* board, const uint8_t queen_num, const uint8_t row_pos)
 {
   for (int g = 0; g < G; g++) {
     for (int i = 0; i < queen_num; i++) {
-      const int other_row_pos = board[i];
+      const uint8_t other_row_pos = board[i];
 
       if (other_row_pos == row_pos - (queen_num - i) ||
           other_row_pos == row_pos + (queen_num - i)) {
@@ -149,7 +150,7 @@ int isSafe(const int G, const int* board, const int queen_num, const int row_pos
 void decompose(const int N, const int G, const Node parent,
   unsigned long long int* tree_loc, unsigned long long int* num_sol, SinglePool* pool)
 {
-  const int depth = parent.depth;
+  const uint8_t depth = parent.depth;
 
   if (depth == N) {
     *num_sol += 1;
@@ -157,7 +158,7 @@ void decompose(const int N, const int G, const Node parent,
   for (int j = depth; j < N; j++) {
     if (isSafe(G, parent.board, depth, parent.board[j])) {
       Node child;
-      memcpy(child.board, parent.board, N * sizeof(int));
+      memcpy(child.board, parent.board, N * sizeof(uint8_t));
       swap(&child.board[depth], &child.board[j]);
       child.depth = depth + 1;
       pushBack(pool, child);
@@ -167,39 +168,39 @@ void decompose(const int N, const int G, const Node parent,
 }
 
 // Evaluate a bulk of parent nodes on GPU.
-__global__ void evaluate_gpu(const int N, const int G, const Node* parents_d, int* status_d, const int size)
+__global__ void evaluate_gpu(const int N, const int G, const Node* parents, uint8_t* evals, const int size)
 {
   int threadId = blockIdx.x * blockDim.x + threadIdx.x;
 
   if (threadId < size) {
     const int parentId = threadId / N;
     const int k = threadId % N;
-    const Node parent = parents_d[parentId];
-    const int depth = parent.depth;
+    const Node parent = parents[parentId];
+    const uint8_t depth = parent.depth;
 
-    status_d[threadId] = 1;
+    evals[threadId] = 1;
 
     // If child 'k' is not scheduled, we evaluate its safety 'G' times, otherwise 0.
     const int G_notScheduled = G * (k >= depth);
     for (int g = 0; g < G_notScheduled; g++) {
       for (int i = 0; i < depth; i++) {
-        const int other_row_pos = parent.board[i];
+        const uint8_t other_row_pos = parent.board[i];
         const int isNotSafe = (other_row_pos == parent.board[k] - (depth - i) ||
                                other_row_pos == parent.board[k] + (depth - i));
 
-        status_d[threadId] *= (1 - isNotSafe);
+        evals[threadId] *= (1 - isNotSafe);
       }
     }
   }
 }
 
 // Generate children nodes (evaluated by GPU) on CPU.
-void generate_children(const int N, const Node* parents, const int size, const int* evals,
+void generate_children(const int N, const Node* parents, const int size, const uint8_t* evals,
   unsigned long long int* exploredTree, unsigned long long int* exploredSol, SinglePool* pool)
 {
   for (int i = 0; i < size; i++) {
     const Node parent = parents[i];
-    const int depth = parent.depth;
+    const uint8_t depth = parent.depth;
 
     if (depth == N) {
       *exploredSol += 1;
@@ -207,7 +208,7 @@ void generate_children(const int N, const Node* parents, const int size, const i
     for (int j = depth; j < N; j++) {
       if (evals[j + i * N] == 1) {
         Node child;
-        memcpy(child.board, parent.board, N * sizeof(int));
+        memcpy(child.board, parent.board, N * sizeof(uint8_t));
         swap(&child.board[depth], &child.board[j]);
         child.depth = depth + 1;
         pushBack(pool, child);
@@ -252,8 +253,8 @@ void nqueens_search(const int N, const int G, const int minSize, const int maxSi
       }
 
       const int evalsSize = N * poolSize;
-      int* evals;
-      cudaMallocManaged(&evals, evalsSize * sizeof(int));
+      uint8_t* evals;
+      cudaMallocManaged(&evals, evalsSize * sizeof(uint8_t));
 
       int nbBlocks = ceil((double)evalsSize / BLOCK_SIZE);
 

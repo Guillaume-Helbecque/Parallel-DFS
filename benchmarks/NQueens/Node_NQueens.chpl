@@ -1,7 +1,5 @@
 module Node_NQueens
 {
-  use CTypes;
-
   /*
     Maximum size of the problem. The exact number of N-Queens solutions is only
     known for N < 28.
@@ -15,8 +13,8 @@ module Node_NQueens
       device, and highly improves the performance using GPUs.
       See Chapel Github issue #22519.
     */
-    var board: NMax*c_int;
-    var depth: int;
+    var board: NMax*uint(8);
+    var depth: uint(8);
 
     // default-initializer
     proc init()
@@ -26,7 +24,7 @@ module Node_NQueens
     proc init(problem)
     {
       init this;
-      for i in 0..#problem.N do this.board[i] = i:c_int;
+      for i in 0..#problem.N do this.board[i] = i:uint(8);
     }
 
     // copy-initializer

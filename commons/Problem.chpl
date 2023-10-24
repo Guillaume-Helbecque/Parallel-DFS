@@ -18,7 +18,7 @@ module Problem
       halt("Error - evaluate_gpu() not implemented");
     }
 
-    proc generate_children(type Node, const parents: [] Node, const status: [] int, ref tree_loc: int,
+    proc generate_children(type Node, const parents: [] Node, const evals: [] uint(8), ref tree_loc: int,
       ref num_sol: int, ref max_depth: int, best: atomic int, ref best_task: int)
     {
       halt("Error - process_children() not implemented");
