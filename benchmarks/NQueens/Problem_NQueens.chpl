@@ -67,12 +67,11 @@ module Problem_NQueens
     }
 
     // Evaluate a bulk of parent nodes on GPU.
-    override proc evaluate_gpu(type Node, const parents: [] Node): [] uint(8)
+    override proc evaluate_gpu(const parents_d): [] uint(8)
     {
-      const size: int = parents.size;
+      const size: int = parents_d.size;
 
       var evals_d: [0..#this.N*size] uint(8) = SAFE;
-      var parents_d = parents;
 
       @assertOnGpu
       foreach pid in 0..#this.N*size {

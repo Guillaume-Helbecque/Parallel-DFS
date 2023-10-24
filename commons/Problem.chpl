@@ -13,7 +13,7 @@ module Problem
       halt("Error - decompose() not implemented");
     }
 
-    proc evaluate_gpu(type Node, const parents: [] Node)
+    proc evaluate_gpu(const parents_d)
     {
       halt("Error - evaluate_gpu() not implemented");
     }

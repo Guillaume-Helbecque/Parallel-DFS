@@ -155,7 +155,8 @@ module search_multicore_gpu
 
           // Offload on GPUs
           on here.gpus[hostId] {
-            evals = problem.evaluate_gpu(Node, parents);
+            const parents_d = parents; // host-to-device
+            evals = problem.evaluate_gpu(parents_d); // device-to-host + kernel
           }
 
           var children = problem.generate_children(Node, parents, evals, tree_loc,
