@@ -27,15 +27,16 @@ module Node_NQueens
       for i in 0..#problem.N do this.board[i] = i:uint(8);
     }
 
+    /*
+      NOTE: This copy-initializer makes the Node type "non-trivial" for `noinit`.
+      Perform manual copy in the code instead.
+    */
     // copy-initializer
-    proc init(other: Node_NQueens)
+    /* proc init(other: Node_NQueens)
     {
       this.board = other.board;
       this.depth = other.depth;
-    }
-
-    proc deinit()
-    {}
+    } */
   }
 
 }

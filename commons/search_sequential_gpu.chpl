@@ -56,7 +56,7 @@ module search_sequential_gpu
       var size = min(pool.size, maxSize);
 
       if (size >= minSize) {
-        var parents: [0..#size] Node;
+        var parents: [0..#size] Node = noinit;
         for p in parents.domain do parents[p] = pool.popBack();
 
         var evals: [0..#problem.length*parents.size] uint(8) = noinit;

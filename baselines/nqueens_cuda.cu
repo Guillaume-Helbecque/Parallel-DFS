@@ -258,7 +258,7 @@ void nqueens_search(const int N, const int G, const int minSize, const int maxSi
       cudaMalloc(&evals_d, evalsSize * sizeof(uint8_t));
       cudaMemcpy(parents_d, parents, poolSize * sizeof(Node), cudaMemcpyHostToDevice);
 
-      int nbBlocks = ceil((double)evalsSize / BLOCK_SIZE);
+      const int nbBlocks = ceil((double)evalsSize / BLOCK_SIZE);
 
       count += 1;
       evaluate_gpu<<<nbBlocks, BLOCK_SIZE>>>(N, G, parents_d, evals_d, evalsSize);

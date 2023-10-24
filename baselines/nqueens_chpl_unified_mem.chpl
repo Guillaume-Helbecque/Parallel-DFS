@@ -235,8 +235,6 @@ proc nqueens_search(ref exploredTree: uint, ref exploredSol: uint)
         const evalsSize = N * poolSize;
         var evals: [0..#evalsSize] uint(8) = noinit;
 
-        const nbBlocks = ceil(evalsSize:real / BLOCK_SIZE);
-
         /*
           Initialization of buffer on CPU memory.
           Not GPU-eligible because the work pool `pool` is not known by the GPU.

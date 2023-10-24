@@ -237,8 +237,6 @@ proc nqueens_search(ref exploredTree: uint, ref exploredSol: uint)
       const evalsSize = N * poolSize;
       var evals: [0..#evalsSize] uint(8) = noinit;
 
-      const nbBlocks = ceil(evalsSize:real / BLOCK_SIZE);
-
       on here.gpus[0] {
         const parents_d = parents; // host-to-device
         evals = evaluate_gpu(parents_d, evalsSize); // device-to-host copy + kernel

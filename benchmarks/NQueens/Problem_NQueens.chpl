@@ -33,12 +33,12 @@ module Problem_NQueens
           // Check diagonals
           if (other_row_pos == row_pos - (queen_num - i) ||
               other_row_pos == row_pos + (queen_num - i)) {
-            return false;
+            return 0;
           }
         }
       }
 
-      return true;
+      return 1;
     }
 
     override proc decompose(type Node, const parent: Node, ref tree_loc: int, ref num_sol: int,
@@ -53,7 +53,9 @@ module Problem_NQueens
       }
       for j in depth..this.N-1 {
         if isSafe(parent.board, depth, parent.board[j]) {
-          var child = new Node(parent);
+          var child = new Node();
+          child.depth = parent.depth;
+          child.board = parent.board;
           child.board[depth] <=> child.board[j];
           child.depth += 1;
           children.pushBack(child);
@@ -90,7 +92,7 @@ module Problem_NQueens
             isSafe *= (parent.board[i] != queen_num - (depth - i) &&
                        parent.board[i] != queen_num + (depth - i));
           }
-          evals_d[threadId] = isSafe;
+          evals_d[pid] = isSafe;
         }
       } // end foreach on GPU
 
@@ -113,7 +115,9 @@ module Problem_NQueens
         }
         for j in depth..this.N-1 {
           if (evals[j + parentId * this.N] == 1) {
-            var child = new Node(parent);
+            var child = new Node();
+            child.depth = parent.depth;
+            child.board = parent.board;
             child.board[depth] <=> child.board[j];
             child.depth += 1;
             children.pushBack(child);
