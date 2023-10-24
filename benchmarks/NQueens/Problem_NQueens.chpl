@@ -6,8 +6,6 @@ module Problem_NQueens
 
   use Problem;
 
-  const SAFE: uint(8) = 1;
-
   class Problem_NQueens : Problem
   {
     var N: int; // number of queens
@@ -71,7 +69,7 @@ module Problem_NQueens
     {
       const size: int = parents_d.size;
 
-      var evals_d: [0..#this.N*size] uint(8) = SAFE;
+      var evals_d: [0..#this.N*size] uint(8) = noinit;
 
       @assertOnGpu
       foreach pid in 0..#this.N*size {
@@ -80,18 +78,19 @@ module Problem_NQueens
         const k = pid % this.N;
         const parent = parents_d[parentId];
         const depth = parent.depth;
+        const queen_num = parent.board[k];
+
+        var isSafe: uint(8) = 1;
 
         // If child 'k' is not scheduled, we evaluate its safety 'G' times, otherwise 0.
         const G_notScheduled: int = this.G * (k >= depth);
         for 0..#G_notScheduled {
           // Check queen's safety
           for i in 0..#depth {
-            const other_row_pos = parent.board[i];
-            const isNotSafe: int = (other_row_pos == parent.board[k] - (depth - i) ||
-                                    other_row_pos == parent.board[k] + (depth - i));
-
-            evals_d[pid] *= (1 - isNotSafe):uint(8);
+            isSafe *= (parent.board[i] != queen_num - (depth - i) &&
+                       parent.board[i] != queen_num + (depth - i));
           }
+          evals_d[threadId] = isSafe;
         }
       } // end foreach on GPU
 
@@ -113,7 +112,7 @@ module Problem_NQueens
           num_sol += 1;
         }
         for j in depth..this.N-1 {
-          if (evals[j + parentId * this.N] == SAFE) {
+          if (evals[j + parentId * this.N] == 1) {
             var child = new Node(parent);
             child.board[depth] <=> child.board[j];
             child.depth += 1;

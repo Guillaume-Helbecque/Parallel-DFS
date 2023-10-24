@@ -163,19 +163,18 @@ proc evaluate_gpu(const parents: [] Node, const size: int)
     const k = threadId % N;
     const parent = parents[parentId];
     const depth = parent.depth;
+    const queen_num = parent.board[k];
 
-    evals[threadId] = 1;
+    var isSafe: uint(8) = 1;
 
     // If child 'k' is not scheduled, we evaluate its safety 'G' times, otherwise 0.
     const G_notScheduled = g * (k >= depth);
     for _g in 0..#G_notScheduled {
       for i in 0..#depth {
-        const other_row_pos = parent.board[i];
-        const isNotSafe = (other_row_pos == parent.board[k] - (depth - i) ||
-                           other_row_pos == parent.board[k] + (depth - i));
-
-        evals[threadId] *= (1 - isNotSafe):uint(8);
+        isSafe *= (parent.board[i] != queen_num - (depth - i) &&
+                   parent.board[i] != queen_num + (depth - i));
       }
+      evals[threadId] = isSafe;
     }
   }
 

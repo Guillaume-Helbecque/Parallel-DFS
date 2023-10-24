@@ -176,19 +176,18 @@ __global__ void evaluate_gpu(const int N, const int G, const Node* parents_d, ui
     const int k = threadId % N;
     const Node parent = parents_d[parentId];
     const uint8_t depth = parent.depth;
+    const uint8_t queen_num = parent.board[k];
 
-    evals_d[threadId] = 1;
+    uint8_t isSafe = 1;
 
     // If child 'k' is not scheduled, we evaluate its safety 'G' times, otherwise 0.
     const int G_notScheduled = G * (k >= depth);
     for (int g = 0; g < G_notScheduled; g++) {
       for (int i = 0; i < depth; i++) {
-        const uint8_t other_row_pos = parent.board[i];
-        const int isNotSafe = (other_row_pos == parent.board[k] - (depth - i) ||
-                               other_row_pos == parent.board[k] + (depth - i));
-
-        evals_d[threadId] *= (1 - isNotSafe);
+        isSafe *= (parent.board[i] != queen_num - (depth - i) &&
+                   parent.board[i] != queen_num + (depth - i));
       }
+      evals_d[threadId] = isSafe;
     }
   }
 }
