@@ -149,20 +149,22 @@ void swap(uint8_t* a, uint8_t* b)
 }
 
 // Check queen's safety.
-int isSafe(const int G, const uint8_t* board, const uint8_t queen_num, const uint8_t row_pos)
+uint8_t isSafe(const int G, const uint8_t* board, const uint8_t queen_num, const uint8_t row_pos)
 {
+  uint8_t isSafe = 1;
+
   for (int g = 0; g < G; g++) {
     for (int i = 0; i < queen_num; i++) {
       const uint8_t other_row_pos = board[i];
 
       if (other_row_pos == row_pos - (queen_num - i) ||
           other_row_pos == row_pos + (queen_num - i)) {
-        return 0;
+        isSafe = 0;
       }
     }
   }
 
-  return 1;
+  return isSafe;
 }
 
 // Evaluate and generate children nodes on CPU.

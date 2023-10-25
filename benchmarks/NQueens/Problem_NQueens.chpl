@@ -23,6 +23,8 @@ module Problem_NQueens
 
     proc isSafe(const board, const queen_num: uint(8), const row_pos: uint(8)): uint(8)
     {
+      var isSafe: uint(8) = 1;
+
       for 0..#this.G {
         // For each queen before this one
         for i in 0..#queen_num {
@@ -32,12 +34,12 @@ module Problem_NQueens
           // Check diagonals
           if (other_row_pos == row_pos - (queen_num - i) ||
               other_row_pos == row_pos + (queen_num - i)) {
-            return 0;
+            isSafe = 0;
           }
         }
       }
 
-      return 1;
+      return isSafe;
     }
 
     override proc decompose(type Node, const parent: Node, ref tree_loc: int, ref num_sol: int,

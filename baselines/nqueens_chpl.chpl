@@ -114,20 +114,22 @@ proc print_results(const exploredTree: uint,
 }
 
 // Check queen's safety.
-proc isSafe(const board, const queen_num, const row_pos)
+proc isSafe(const board, const queen_num, const row_pos): uint(8)
 {
+  var isSafe: uint(8) = 1;
+
   for _g in 0..#g {
     for i in 0..#queen_num {
       const other_row_pos = board[i];
 
       if (other_row_pos == row_pos - (queen_num - i) ||
           other_row_pos == row_pos + (queen_num - i)) {
-        return 0;
+        isSafe = 0;
       }
     }
   }
 
-  return 1;
+  return isSafe;
 }
 
 // Evaluate and generate children nodes on CPU.
