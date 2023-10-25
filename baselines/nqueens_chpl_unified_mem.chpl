@@ -207,7 +207,7 @@ proc generate_children(const parents: [] Node, const size: int, const evals: [] 
 }
 
 // Single-core single-GPU N-Queens search.
-proc nqueens_search(ref exploredTree: uint, ref exploredSol: uint)
+proc nqueens_search(ref exploredTree: uint, ref exploredSol: uint, ref elapsedTime: real)
 {
   const host = here;
   var root = new Node(N);
@@ -216,7 +216,8 @@ proc nqueens_search(ref exploredTree: uint, ref exploredSol: uint)
 
   pool.pushBack(root);
 
-  var count = 0;
+  var timer: stopwatch;
+  timer.start();
 
   while true {
     var hasWork = 0;
@@ -258,6 +259,9 @@ proc nqueens_search(ref exploredTree: uint, ref exploredSol: uint)
     }
   }
 
+  timer.stop();
+  elapsedTime = timer.elapsed();
+
   writeln("\nExploration terminated.");
 }
 
@@ -269,17 +273,15 @@ proc main()
   var exploredTree: uint = 0;
   var exploredSol: uint = 0;
 
-  var timer: stopwatch;
+  var elapsedTime: real;
 
   startGpuDiagnostics();
-  timer.start();
 
-  nqueens_search(exploredTree, exploredSol);
+  nqueens_search(exploredTree, exploredSol, elapsedTime);
 
-  timer.stop();
   stopGpuDiagnostics();
 
-  print_results(exploredTree, exploredSol, timer.elapsed());
+  print_results(exploredTree, exploredSol, elapsedTime);
 
   writeln("GPU diagnostics:");
   writeln("   kernel_launch: ", getGpuDiagnostics().kernel_launch);

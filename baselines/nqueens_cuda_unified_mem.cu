@@ -219,7 +219,8 @@ void generate_children(const int N, const Node* parents, const int size, const u
 
 // Single-core single-GPU N-Queens search.
 void nqueens_search(const int N, const int G, const int minSize, const int maxSize,
-  unsigned long long int* exploredTree, unsigned long long int* exploredSol)
+  unsigned long long int* exploredTree, unsigned long long int* exploredSol,
+  clock_t* elapsedTime)
 {
   Node root;
   initRoot(&root, N);
@@ -230,6 +231,7 @@ void nqueens_search(const int N, const int G, const int minSize, const int maxSi
   pushBack(&pool, root);
 
   int count = 0;
+  clock_t startTime = clock();
 
   while (1) {
     int hasWork = 0;
@@ -268,6 +270,9 @@ void nqueens_search(const int N, const int G, const int minSize, const int maxSi
     }
   }
 
+  clock_t endTime = clock();
+  *elapsedTime = (double)(endTime - startTime) / CLOCKS_PER_SEC;
+
   printf("\nExploration terminated.\n");
   printf("Cuda kernel calls: %d\n", count);
 
@@ -283,14 +288,11 @@ int main(int argc, char* argv[])
   unsigned long long int exploredTree = 0;
   unsigned long long int exploredSol = 0;
 
-  clock_t startTime = clock();
+  double elapsedTime;
 
-  nqueens_search(N, G, minSize, maxSize, &exploredTree, &exploredSol);
+  nqueens_search(N, G, minSize, maxSize, &exploredTree, &exploredSol, &elapsedTime);
 
-  clock_t endTime = clock();
-  double totalTime = (double)(endTime - startTime) / CLOCKS_PER_SEC;
-
-  print_results(exploredTree, exploredSol, totalTime);
+  print_results(exploredTree, exploredSol, elapsedTime);
 
   return 0;
 }
