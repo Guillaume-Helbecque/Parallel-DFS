@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <unistd.h>
 #include <time.h>
 #include "cuda_runtime.h"
 
@@ -87,19 +88,38 @@ Implementation of the single-core single-GPU N-Queens search.
 
 void parse_parameters(int argc, char* argv[], int* N, int* G, int* minSize, int* maxSize)
 {
-  if (argc != 5) {
-    printf("Usage: %s <N> <g> <minSize> <maxSize>\n", argv[0]);
-    exit(0);
-  }
+  *N = 14;
+  *G = 1;
+  *minSize = 25;
+  *maxSize = 50000;
 
-  *N = atoi(argv[1]);
-  *G = atoi(argv[2]);
-  *minSize = atoi(argv[3]);
-  *maxSize = atoi(argv[4]);
+  int opt, value;
 
-  if ((*N <= 0) || (*G <= 0) || (*minSize <= 0) || (*maxSize <= 0)) {
-    printf("All parameters must be positive integers.\n");
-    exit(0);
+  while ((opt = getopt(argc, argv, "N:g:m:M:")) != -1) {
+    value = atoi(optarg);
+
+    if (value <= 0) {
+      printf("All parameters must be positive integers.\n");
+      exit(EXIT_FAILURE);
+    }
+
+    switch (opt) {
+      case 'N':
+        *N = value;
+        break;
+      case 'g':
+        *G = value;
+        break;
+      case 'm':
+        *minSize = value;
+        break;
+      case 'M':
+        *maxSize = value;
+        break;
+      default:
+        fprintf(stderr, "Usage: %s -N value -g value -m value -M value\n", argv[0]);
+        exit(EXIT_FAILURE);
+    }
   }
 }
 
@@ -219,7 +239,7 @@ void generate_children(const int N, const Node* parents, const int size, const u
 // Single-core single-GPU N-Queens search.
 void nqueens_search(const int N, const int G, const int minSize, const int maxSize,
   unsigned long long int* exploredTree, unsigned long long int* exploredSol,
-  clock_t* elapsedTime)
+  double* elapsedTime)
 {
   Node root;
   initRoot(&root, N);

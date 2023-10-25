@@ -10,10 +10,10 @@ Nodes are managed using a hand-coded work pool.
 To compile and execute:
 ```
 nvcc -O3 nqueens_cuda[_unified_mem].cu -arch=sm_XX
-./a.out <N> <g> <minSize> <maxSize>
+./a.out -N value -g value -m value -M value
 ```
 where:
 - `N` is the number of queens;
 - `g` is the number of safety check(s) per evaluation;
-- `minSize` is the minimum number of elements to offload on GPUs;
-- `maxSize` is the maximum number of elements to offload on GPUs.
+- `m` is the minimum number of elements to offload on GPUs;
+- `M` is the maximum number of elements to offload on GPUs.
