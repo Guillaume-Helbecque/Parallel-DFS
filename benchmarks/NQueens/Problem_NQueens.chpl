@@ -1,7 +1,6 @@
 module Problem_NQueens
 {
   use aux;
-  use List;
   use CTypes;
 
   use Problem;
@@ -42,10 +41,8 @@ module Problem_NQueens
     }
 
     override proc decompose(type Node, const parent: Node, ref tree_loc: int, ref num_sol: int,
-      ref max_depth: int, best: atomic int, ref best_task: int): list(Node)
+      ref max_depth: int, best: atomic int, ref best_task: int, ref pool)
     {
-      var children: list(Node);
-
       const depth = parent.depth;
 
       if (depth == this.N) { // All queens are placed
@@ -58,23 +55,19 @@ module Problem_NQueens
           child.board = parent.board;
           child.board[depth] <=> child.board[j];
           child.depth += 1;
-          children.pushBack(child);
+          pool.pushBack(child);
           tree_loc += 1;
         }
       }
-
-      return children;
     }
 
     // Evaluate a bulk of parent nodes on GPU.
-    override proc evaluate_gpu(const parents_d): [] uint(8)
+    override proc evaluate_gpu(const parents_d, const size): [] uint(8)
     {
-      const size: int = parents_d.size;
-
-      var evals_d: [0..#this.N*size] uint(8) = noinit;
+      var evals_d: [0..#size] uint(8) = noinit;
 
       @assertOnGpu
-      foreach pid in 0..#this.N*size {
+      foreach pid in 0..#size {
 
         const parentId = pid / this.N;
         const k = pid % this.N;
@@ -101,11 +94,8 @@ module Problem_NQueens
 
     // Generate children nodes (evaluated by GPU) on CPU.
     override proc generate_children(type Node, const parents: [] Node, const evals: [] uint(8), ref tree_loc: int,
-      ref num_sol: int, ref max_depth: int, best: atomic int, ref best_task: int): list(Node)
+      ref num_sol: int, ref max_depth: int, best: atomic int, ref best_task: int, ref pool)
     {
-      var children: list(Node);
-
-      // Generate children if any
       for parentId in parents.domain {
         const parent = parents[parentId];
         const depth = parent.depth;
@@ -120,13 +110,11 @@ module Problem_NQueens
             child.board = parent.board;
             child.board[depth] <=> child.board[j];
             child.depth += 1;
-            children.pushBack(child);
+            pool.pushBack(child);
             tree_loc += 1;
           }
         }
       }
-
-      return children;
     }
 
     // No bounding in NQueens

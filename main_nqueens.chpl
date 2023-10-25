@@ -40,20 +40,20 @@ module main_queens
     select mode {
       when "sequential" {
         if activeSet then warning("Cannot use `activeSet` in sequential mode.");
-        search_sequential(Node_NQueens, nqueens, saveTime);
+        /* search_sequential(Node_NQueens, nqueens, saveTime); */
       }
       when "multicore" {
-        search_multicore(Node_NQueens, nqueens, saveTime, activeSet);
+        /* search_multicore(Node_NQueens, nqueens, saveTime, activeSet); */
       }
       when "distributed" {
-        search_distributed(Node_NQueens, nqueens, saveTime, activeSet);
+        /* search_distributed(Node_NQueens, nqueens, saveTime, activeSet); */
       }
       when "sequential-gpu" {
         if activeSet then warning("Cannot use `activeSet` in sequential mode.");
         search_sequential_gpu(Node_NQueens, nqueens, saveTime);
       }
       when "multicore-gpu" {
-        search_multicore_gpu(Node_NQueens, nqueens, saveTime, activeSet);
+        /* search_multicore_gpu(Node_NQueens, nqueens, saveTime, activeSet); */
       }
       otherwise {
         halt("ERROR - Unknown execution mode");

@@ -8,18 +8,18 @@ module Problem
     }
 
     proc decompose(type Node, const parent: Node, ref tree_loc: int, ref num_sol: int,
-      ref max_depth: int, best: atomic int, ref best_task: int)
+      ref max_depth: int, best: atomic int, ref best_task: int, ref pool)
     {
       halt("Error - decompose() not implemented");
     }
 
-    proc evaluate_gpu(const parents_d)
+    proc evaluate_gpu(const parents_d, const size)
     {
       halt("Error - evaluate_gpu() not implemented");
     }
 
     proc generate_children(type Node, const parents: [] Node, const evals: [] uint(8), ref tree_loc: int,
-      ref num_sol: int, ref max_depth: int, best: atomic int, ref best_task: int)
+      ref num_sol: int, ref max_depth: int, best: atomic int, ref best_task: int, ref pool)
     {
       halt("Error - process_children() not implemented");
     }

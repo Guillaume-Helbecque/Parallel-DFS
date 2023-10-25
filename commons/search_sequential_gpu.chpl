@@ -1,7 +1,6 @@
 module search_sequential_gpu
 {
   use GPU;
-  use List;
   use Time;
   use CTypes;
   use GpuDiagnostics;
@@ -94,12 +93,10 @@ module search_sequential_gpu
       if !hasWork then break;
 
       // Decompose the element
-      var children = problem.decompose(Node, parent, exploredTree, exploredSol,
-        maxDepth, best_at, best);
+      problem.decompose(Node, parent, exploredTree, exploredSol,
+        maxDepth, best_at, best, pool);
 
-      for child in children do pool.pushBack(child);
-
-      var size = min(pool.size, maxSize);
+      const size = min(pool.size, maxSize);
 
       if (size >= minSize) {
         var parents: [0..#size] Node = noinit;
@@ -109,18 +106,18 @@ module search_sequential_gpu
           if !hasWork then break;
         }
 
-        var evals: [0..#problem.length*parents.size] uint(8) = noinit;
+        const evalsSize = problem.length * size;
+        var evals: [0..#evalsSize] uint(8) = noinit;
 
         // Offload on GPUs
         on here.gpus[0] {
           const parents_d = parents; // host-to-device
-          evals = problem.evaluate_gpu(parents_d); // device-to-host + kernel
+          evals = problem.evaluate_gpu(parents_d, evalsSize); // device-to-host + kernel
         }
 
-        var children = problem.generate_children(Node, parents, evals, exploredTree,
-          exploredSol, maxDepth, best_at, best);
-
-        for child in children do pool.pushBack(child);
+        // Generate the children nodes
+        problem.generate_children(Node, parents, evals, exploredTree,
+          exploredSol, maxDepth, best_at, best, pool);
       }
     }
 
