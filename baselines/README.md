@@ -19,4 +19,4 @@ where:
 - `M` is the maximum number of elements to offload on GPUs.
 
 **Note:** By default, the target architecture for C code generation is set to
-`-arch=sm_60` in `makefile`. Change this value if needed.
+`-arch=sm_60` in `makefile`.
