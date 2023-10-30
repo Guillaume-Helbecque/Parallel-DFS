@@ -1,10 +1,12 @@
 /*
   Chapel backtracking algorithm to solve instances of the N-Queens problem.
-  This version is a variant of nqueens_chpl.chpl exploiting unified memory features.
+  This version is a variant of nqueens_chpl.chpl using the DistBag_DFS data
+  structure as work pool.
 */
 
 use Time;
 use GpuDiagnostics;
+use DistributedBag_DFS;
 
 config const BLOCK_SIZE = 512;
 
@@ -36,48 +38,6 @@ record Node {
     this.depth = other.depth;
     this.board = other.board;
   } */
-}
-
-/*******************************************************************************
-Implementation of a dynamic-sized single pool data structure.
-Its initial capacity is 1024, and we reallocate a new container with double
-the capacity when it is full. Since we perform only DFS, it only supports
-'pushBack' and 'popBack' operations.
-*******************************************************************************/
-
-config param CAPACITY = 1024;
-
-record SinglePool {
-  var dom: domain(1);
-  var elements: [dom] Node;
-  var capacity: int;
-  var size: int;
-
-  proc init() {
-    this.dom = 0..#CAPACITY;
-    this.capacity = CAPACITY;
-  }
-
-  proc ref pushBack(node: Node){
-    if (this.size >= this.capacity) {
-      this.capacity *=2;
-      this.dom = 0..#this.capacity;
-    }
-
-    this.elements[this.size] = node;
-    this.size += 1;
-  }
-
-  proc ref popBack(ref hasWork: int) {
-    if (this.size > 0) {
-      hasWork = 1;
-      this.size -= 1;
-      return this.elements[this.size];
-    }
-
-    var default: Node;
-    return default;
-  }
 }
 
 /*******************************************************************************
@@ -134,7 +94,7 @@ proc isSafe(const board, const queen_num, const row_pos): uint(8)
 }
 
 // Evaluate and generate children nodes on CPU.
-proc decompose(const parent: Node, ref tree_loc: uint, ref num_sol: uint, ref pool: SinglePool)
+proc decompose(const parent: Node, ref tree_loc: uint, ref num_sol: uint, ref bag: DistBag_DFS(Node))
 {
   const depth = parent.depth;
 
@@ -148,22 +108,22 @@ proc decompose(const parent: Node, ref tree_loc: uint, ref num_sol: uint, ref po
       child.board = parent.board;
       child.board[depth] <=> child.board[j];
       child.depth += 1;
-      pool.pushBack(child);
+      bag.add(child, 0);
       tree_loc += 1;
     }
   }
 }
 
 // Evaluate a bulk of parent nodes on GPU.
-proc evaluate_gpu(const parents: [] Node, const size: int)
+proc evaluate_gpu(const parents_d: [] Node, const size: int)
 {
-  var evals: [0..#size] uint(8) = noinit;
+  var evals_d: [0..#size] uint(8) = noinit;
 
   @assertOnGpu
   foreach threadId in 0..#size {
     const parentId = threadId / N;
     const k = threadId % N;
-    const parent = parents[parentId];
+    const parent = parents_d[parentId];
     const depth = parent.depth;
     const queen_num = parent.board[k];
 
@@ -176,16 +136,16 @@ proc evaluate_gpu(const parents: [] Node, const size: int)
         isSafe *= (parent.board[i] != queen_num - (depth - i) &&
                    parent.board[i] != queen_num + (depth - i));
       }
-      evals[threadId] = isSafe;
+      evals_d[threadId] = isSafe;
     }
   }
 
-  return evals;
+  return evals_d;
 }
 
 // Generate children nodes (evaluated by GPU) on CPU.
 proc generate_children(const parents: [] Node, const size: int, const evals: [] uint(8),
-  ref exploredTree: uint, ref exploredSol: uint, ref pool: SinglePool)
+  ref exploredTree: uint, ref exploredSol: uint, ref bag: DistBag_DFS(Node))
 {
   for i in 0..#size  {
     const parent = parents[i];
@@ -201,7 +161,7 @@ proc generate_children(const parents: [] Node, const size: int, const evals: [] 
         child.board = parent.board;
         child.board[depth] <=> child.board[j];
         child.depth += 1;
-        pool.pushBack(child);
+        bag.add(child, 0);
         exploredTree += 1;
       }
     }
@@ -211,53 +171,37 @@ proc generate_children(const parents: [] Node, const size: int, const evals: [] 
 // Single-core single-GPU N-Queens search.
 proc nqueens_search(ref exploredTree: uint, ref exploredSol: uint, ref elapsedTime: real)
 {
-  const host = here;
   var root = new Node(N);
 
-  var pool: SinglePool;
+  var bag = new DistBag_DFS(Node);
 
-  pool.pushBack(root);
+  bag.add(root, 0);
 
   var timer: stopwatch;
   timer.start();
 
   while true {
-    var hasWork = 0;
-    var parent = pool.popBack(hasWork);
-    if !hasWork then break;
+    var (hasWork, parent) = bag.remove(0);
+    if (hasWork == -1) then break;
 
-    decompose(parent, exploredTree, exploredSol, pool);
+    decompose(parent, exploredTree, exploredSol, bag);
 
-    const poolSize = min(pool.size, maxSize);
+    var poolSize = min(bag.size, maxSize);
 
     // If 'poolSize' is sufficiently large, we offload the pool on GPU.
     if (poolSize >= minSize) {
+      var (hasWork, parents) = bag.removeBulk_(poolSize, 0);
+      if (hasWork == -1) then break;
+
+      const evalsSize = N * poolSize;
+      var evals: [0..#evalsSize] uint(8) = noinit;
+
       on here.gpus[0] {
-        // declaration of buffers on unified memory
-        var parents: [0..#poolSize] Node = noinit;
-        const evalsSize = N * poolSize;
-        var evals: [0..#evalsSize] uint(8) = noinit;
-
-        /*
-          Initialization of buffer on CPU memory.
-          Not GPU-eligible because the work pool `pool` is not known by the GPU.
-        */
-        on host {
-          for i in 0..#poolSize do
-            parents[i] = pool.popBack(hasWork);
-        }
-
-        /* GPU kernel - evaluate each children and fill evals */
-        evals = evaluate_gpu(parents, evalsSize);
-
-        /*
-          On CPU - generate the children and fill the work pool.
-          Not GPU-eligible because the work pool `pool` is not known by the GPU.
-        */
-        on host {
-          generate_children(parents, poolSize, evals, exploredTree, exploredSol, pool);
-        }
+        const parents_d = parents; // host-to-device
+        evals = evaluate_gpu(parents_d, evalsSize); // device-to-host copy + kernel
       }
+
+      generate_children(parents, poolSize, evals, exploredTree, exploredSol, bag);
     }
   }
 
