@@ -57,7 +57,7 @@ record SinglePool {
     this.capacity = CAPACITY;
   }
 
-  proc ref pushBack(node: Node){
+  proc ref pushBack(node: Node) {
     if (this.size >= this.capacity) {
       this.capacity *=2;
       this.dom = 0..#this.capacity;
@@ -154,12 +154,12 @@ proc decompose(const parent: Node, ref tree_loc: uint, ref num_sol: uint, ref po
 }
 
 // Evaluate a bulk of parent nodes on GPU.
-proc evaluate_gpu(const parents_d: [] Node, const size: int)
+proc evaluate_gpu(const parents_d: [] Node, const myChunk)
 {
-  var evals_d: [0..#size] uint(8) = noinit;
+  var evals_d: [myChunk] uint(8) = noinit;
 
   @assertOnGpu
-  foreach threadId in 0..#size {
+  foreach threadId in myChunk {
     const parentId = threadId / N;
     const k = threadId % N;
     const parent = parents_d[parentId];
@@ -210,6 +210,8 @@ proc generate_children(const parents: [] Node, const size: int, const evals: [] 
 // Single-core single-GPU N-Queens search.
 proc nqueens_search(ref exploredTree: uint, ref exploredSol: uint, ref elapsedTime: real)
 {
+  const numGpus = here.gpus.size;
+
   var root = new Node(N);
 
   var pool: SinglePool;
@@ -227,6 +229,12 @@ proc nqueens_search(ref exploredTree: uint, ref exploredSol: uint, ref elapsedTi
     decompose(parent, exploredTree, exploredSol, pool);
 
     var poolSize = min(pool.size, maxSize);
+    /*
+      NOTE: For now, we consider that poolSize is an even number to facilitate
+      the partition of work.
+      TODO: Implement general case.
+    */
+    if (poolSize % 2) == 1 then poolSize -= 1;
 
     // If 'poolSize' is sufficiently large, we offload the pool on GPU.
     if (poolSize >= minSize) {
@@ -239,10 +247,14 @@ proc nqueens_search(ref exploredTree: uint, ref exploredSol: uint, ref elapsedTi
 
       const evalsSize = N * poolSize;
       var evals: [0..#evalsSize] uint(8) = noinit;
+      var gpuChunkSize = evalsSize / numGpus;
 
-      on here.gpus[0] {
-        const parents_d = parents; // host-to-device
-        evals = evaluate_gpu(parents_d, evalsSize); // device-to-host copy + kernel
+      coforall (gpu, gpuID) in zip(here.gpus, here.gpus.domain) with (ref evals) do on gpu {
+        const myChunk = (gpuID*gpuChunkSize)..#gpuChunkSize;
+        const pChunk = (gpuID*gpuChunkSize/N)..#(gpuChunkSize/N);
+        const parents_d = parents[pChunk]; // host-to-device
+
+        evals[myChunk] = evaluate_gpu(parents_d, myChunk); // device-to-host copy + kernel
       }
 
       generate_children(parents, poolSize, evals, exploredTree, exploredSol, pool);
