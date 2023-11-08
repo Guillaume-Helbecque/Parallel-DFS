@@ -9,8 +9,8 @@ CHPL_COMMON_OPTS := --fast
 C_COMMON_OPTS := -O3 -arch=sm_60
 
 # Source files
-CHPL_SOURCES := nqueens_chpl.chpl nqueens_chpl_unified_mem.chpl #nqueens_chpl_bag.chpl
-CUDA_SOURCES := nqueens_cuda.cu nqueens_cuda_unified_mem.cu
+CHPL_SOURCES := nqueens_chpl.chpl nqueens_unified_mem_chpl.chpl #nqueens_bag_chpl.chpl
+CUDA_SOURCES := nqueens_cuda.cu nqueens_unified_mem_cuda.cu
 
 # Object files
 CHPL_OBJECTS := $(CHPL_SOURCES:.chpl=.o)
