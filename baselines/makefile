@@ -12,7 +12,7 @@ HIP_COMMON_OPTS  := -O3 -offload-arch=gfx906
 
 # Source files
 CHPL_SOURCES := nqueens_chpl.chpl nqueens_unified_mem_chpl.chpl #nqueens_bag_chpl.chpl
-CUDA_SOURCES := nqueens_cuda.cu nqueens_unified_mem_cuda.cu
+CUDA_SOURCES := nqueens_cuda.cu nqueens_unified_mem_cuda.cu nqueens_multigpu_cuda.cu
 
 # Object files
 CHPL_OBJECTS := $(CHPL_SOURCES:.chpl=.o)
