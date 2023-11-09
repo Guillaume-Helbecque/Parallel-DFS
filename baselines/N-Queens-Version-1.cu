@@ -86,12 +86,12 @@ void deleteSinglePool(SinglePool* pool)
 Implementation of the single-core single-GPU N-Queens search.
 *******************************************************************************/
 
-void parse_parameters(int argc, char* argv[], int* N, int* G, int* minSize, int* maxSize)
+void parse_parameters(int argc, char* argv[], int* N, int* G, int* m, int* M)
 {
   *N = 14;
   *G = 1;
-  *minSize = 25;
-  *maxSize = 50000;
+  *m = 25;
+  *M = 50000;
 
   int opt, value;
 
@@ -111,10 +111,10 @@ void parse_parameters(int argc, char* argv[], int* N, int* G, int* minSize, int*
         *G = value;
         break;
       case 'm':
-        *minSize = value;
+        *m = value;
         break;
       case 'M':
-        *maxSize = value;
+        *M = value;
         break;
       default:
         fprintf(stderr, "Usage: %s -N value -g value -m value -M value\n", argv[0]);
@@ -239,7 +239,7 @@ void generate_children(const int N, const Node* parents, const int size, const u
 }
 
 // Single-core single-GPU N-Queens search.
-void nqueens_search(const int N, const int G, const int minSize, const int maxSize,
+void nqueens_search(const int N, const int G, const int m, const int M,
   unsigned long long int* exploredTree, unsigned long long int* exploredSol,
   double* elapsedTime)
 {
@@ -264,12 +264,13 @@ void nqueens_search(const int N, const int G, const int minSize, const int maxSi
 
     decompose(N, G, parent, exploredTree, exploredSol, &pool);
 
-    int poolSize = MIN(pool.size, maxSize);
+    int poolSize = pool.size;
 
     // If 'poolSize' is sufficiently large, we offload the pool on GPU.
-    if (poolSize >= minSize) {
-      // Ensure that poolSize is even
-      if (poolSize % 2 == 1) poolSize -= 1;
+    if (poolSize >= m) {
+      // Ensure that poolSize is a multiple of deviceCount
+      poolSize = MIN(poolSize, M);
+      poolSize = (poolSize / deviceCount) * deviceCount;
 
       Node* parents = (Node*)malloc(poolSize * sizeof(Node));
       for (int i = 0; i < poolSize; i++) {
@@ -281,7 +282,13 @@ void nqueens_search(const int N, const int G, const int minSize, const int maxSi
       const int evalsSize = N * poolSize;
       uint8_t* evals = (uint8_t*)malloc(evalsSize * sizeof(uint8_t));
 
+      const int poolSize_d = poolSize / deviceCount;
+      const int evalsSize_d = evalsSize / deviceCount;
+
       for (int deviceID = 0; deviceID < deviceCount; deviceID++) {
+        // set GPU device (deviceID)
+        cudaSetDevice(deviceID);
+
         Node* parents_d;
         uint8_t* evals_d;
 
@@ -292,25 +299,21 @@ void nqueens_search(const int N, const int G, const int minSize, const int maxSi
         host side data (for example, evalSize and poolSize)
         */
 
-        // set GPU device (deviceID)
-        cudaSetDevice(deviceID);
-        cudaMalloc(&parents_d, poolSize/deviceCount * sizeof(Node));
-        cudaMalloc(&evals_d, evalsSize/deviceCount * sizeof(uint8_t));
-        cudaMemcpy(parents_d, parents + deviceID * poolSize/deviceCount, poolSize/deviceCount * sizeof(Node), cudaMemcpyHostToDevice);
+        cudaMalloc(&parents_d, poolSize_d * sizeof(Node));
+        cudaMalloc(&evals_d, evalsSize_d * sizeof(uint8_t));
+        cudaMemcpy(parents_d, parents + deviceID * poolSize_d, poolSize_d * sizeof(Node), cudaMemcpyHostToDevice);
 
         const int nbBlocks = ceil((double)evalsSize / BLOCK_SIZE);
         count += 1;
 
         // call the compute kernel on device (deviceID)
-        cudaSetDevice(deviceID);
-        evaluate_gpu<<<nbBlocks, BLOCK_SIZE>>>(N, G, parents_d, evals_d, evalsSize/deviceCount);
-        cudaDeviceSynchronize();
-        cudaMemcpy(evals + deviceID * evalsSize/deviceCount, evals_d, evalsSize/deviceCount * sizeof(uint8_t), cudaMemcpyDeviceToHost);
+        evaluate_gpu<<<nbBlocks, BLOCK_SIZE>>>(N, G, parents_d, evals_d, evalsSize_d);
+        cudaMemcpy(evals + deviceID * evalsSize_d, evals_d, evalsSize_d * sizeof(uint8_t), cudaMemcpyDeviceToHost);
 
-        cudaSetDevice(deviceID);
         cudaFree(parents_d);
         cudaFree(evals_d);
       }
+      cudaDeviceSynchronize(); // not sure it is needed...
 
       generate_children(N, parents, poolSize, evals, exploredTree, exploredSol, &pool);
 
@@ -330,8 +333,8 @@ void nqueens_search(const int N, const int G, const int minSize, const int maxSi
 
 int main(int argc, char* argv[])
 {
-  int N, G, minSize, maxSize;
-  parse_parameters(argc, argv, &N, &G, &minSize, &maxSize);
+  int N, G, m, M;
+  parse_parameters(argc, argv, &N, &G, &m, &M);
   print_settings(N, G);
 
   unsigned long long int exploredTree = 0;
@@ -339,7 +342,7 @@ int main(int argc, char* argv[])
 
   double elapsedTime;
 
-  nqueens_search(N, G, minSize, maxSize, &exploredTree, &exploredSol, &elapsedTime);
+  nqueens_search(N, G, m, M, &exploredTree, &exploredSol, &elapsedTime);
 
   print_results(exploredTree, exploredSol, elapsedTime);
 
