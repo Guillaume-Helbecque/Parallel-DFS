@@ -46,12 +46,12 @@ Implementation of the single-core single-GPU N-Queens search.
 
 config const N = 14;
 config const g = 1;
-config const minSize = 25;
-config const maxSize = 50000;
+config const m = 25;
+config const M = 50000;
 
 proc check_parameters()
 {
-  if ((N <= 0) || (g <= 0) || (minSize <= 0) || (maxSize <= 0)) {
+  if ((N <= 0) || (g <= 0) || (m <= 0) || (M <= 0)) {
     halt("All parameters must be positive integers.\n");
   }
 }
@@ -186,10 +186,10 @@ proc nqueens_search(ref exploredTree: uint, ref exploredSol: uint, ref elapsedTi
 
     decompose(parent, exploredTree, exploredSol, bag);
 
-    var poolSize = min(bag.size, maxSize);
+    var poolSize = min(bag.size, M);
 
     // If 'poolSize' is sufficiently large, we offload the pool on GPU.
-    if (poolSize >= minSize) {
+    if (poolSize >= m) {
       var (hasWork, parents) = bag.removeBulk_(poolSize, 0);
       if (hasWork == -1) then break;
 

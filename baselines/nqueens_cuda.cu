@@ -86,12 +86,12 @@ void deleteSinglePool(SinglePool* pool)
 Implementation of the single-core single-GPU N-Queens search.
 *******************************************************************************/
 
-void parse_parameters(int argc, char* argv[], int* N, int* G, int* minSize, int* maxSize)
+void parse_parameters(int argc, char* argv[], int* N, int* G, int* m, int* M)
 {
   *N = 14;
   *G = 1;
-  *minSize = 25;
-  *maxSize = 50000;
+  *m = 25;
+  *M = 50000;
 
   int opt, value;
 
@@ -111,10 +111,10 @@ void parse_parameters(int argc, char* argv[], int* N, int* G, int* minSize, int*
         *G = value;
         break;
       case 'm':
-        *minSize = value;
+        *m = value;
         break;
       case 'M':
-        *maxSize = value;
+        *M = value;
         break;
       default:
         fprintf(stderr, "Usage: %s -N value -g value -m value -M value\n", argv[0]);
@@ -239,7 +239,7 @@ void generate_children(const int N, const Node* parents, const int size, const u
 }
 
 // Single-core single-GPU N-Queens search.
-void nqueens_search(const int N, const int G, const int minSize, const int maxSize,
+void nqueens_search(const int N, const int G, const int m, const int M,
   unsigned long long int* exploredTree, unsigned long long int* exploredSol,
   double* elapsedTime)
 {
@@ -261,10 +261,10 @@ void nqueens_search(const int N, const int G, const int minSize, const int maxSi
 
     decompose(N, G, parent, exploredTree, exploredSol, &pool);
 
-    int poolSize = MIN(pool.size, maxSize);
+    int poolSize = MIN(pool.size, M);
 
     // If 'poolSize' is sufficiently large, we offload the pool on GPU.
-    if (poolSize >= minSize) {
+    if (poolSize >= m) {
       Node* parents = (Node*)malloc(poolSize * sizeof(Node));
       for (int i = 0; i < poolSize; i++) {
         int hasWork = 0;
@@ -311,8 +311,8 @@ void nqueens_search(const int N, const int G, const int minSize, const int maxSi
 
 int main(int argc, char* argv[])
 {
-  int N, G, minSize, maxSize;
-  parse_parameters(argc, argv, &N, &G, &minSize, &maxSize);
+  int N, G, m, M;
+  parse_parameters(argc, argv, &N, &G, &m, &M);
   print_settings(N, G);
 
   unsigned long long int exploredTree = 0;
@@ -320,7 +320,7 @@ int main(int argc, char* argv[])
 
   double elapsedTime;
 
-  nqueens_search(N, G, minSize, maxSize, &exploredTree, &exploredSol, &elapsedTime);
+  nqueens_search(N, G, m, M, &exploredTree, &exploredSol, &elapsedTime);
 
   print_results(exploredTree, exploredSol, elapsedTime);
 
