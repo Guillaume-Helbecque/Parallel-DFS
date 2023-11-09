@@ -265,6 +265,9 @@ void nqueens_search(const int N, const int G, const int minSize, const int maxSi
 
     // If 'poolSize' is sufficiently large, we offload the pool on GPU.
     if (poolSize >= minSize) {
+      // Ensure that poolSize is even
+      if (poolSize % 2 == 1) poolSize -= 1;
+
       Node* parents = (Node*)malloc(poolSize * sizeof(Node));
       for (int i = 0; i < poolSize; i++) {
         int hasWork = 0;
@@ -278,47 +281,47 @@ void nqueens_search(const int N, const int G, const int minSize, const int maxSi
       Node* parents_d_0;
       Node* parents_d_1;
       uint8_t* evals_d_0;
-      unit8_t* evals_d_1;
-      
+      uint8_t* evals_d_1;
+
       /*
       To finalise the code, we just need to split the data between the GPUs
       For example, poolSize, and evalSize.
       The memory also needs to be ajusted on GPUs based on the splited (devided)
       host side data (for example, evalSize and poolSize)
       */
-     
+
       // set GPU device (0)
-      cudaSetDevice(0);	
+      cudaSetDevice(0);
       cudaMalloc(&parents_d_0, poolSize/2 * sizeof(Node));
       cudaMalloc(&evals_d_0, evalsSize/2 * sizeof(uint8_t));
-      cudaMemcpy(parents_d_0, parents/2, poolSize/2 * sizeof(Node), cudaMemcpyHostToDevice);
+      cudaMemcpy(parents_d_0, parents, poolSize/2 * sizeof(Node), cudaMemcpyHostToDevice);
 
       // set GPU device (1)
-      cudaSetDevice(1);	
+      cudaSetDevice(1);
       cudaMalloc(&parents_d_1, poolSize/2 * sizeof(Node));
       cudaMalloc(&evals_d_1, evalsSize/2 * sizeof(uint8_t));
-      cudaMemcpy(parents_d_1, parents/2, poolSize/2 * sizeof(Node), cudaMemcpyHostToDevice);
+      cudaMemcpy(parents_d_1, parents + poolSize/2, poolSize/2 * sizeof(Node), cudaMemcpyHostToDevice);
 
       const int nbBlocks = ceil((double)evalsSize / BLOCK_SIZE);
       count += 1;
-      
-      // call the compute kernel on device (0)      
-      cudaSetDevice(0);	
-      evaluate_gpu<<<nbBlocks, BLOCK_SIZE>>>(N, G, parents_d_0, evals_d_0, evalsSize);
-      cudaDeviceSynchronize();
-      cudaMemcpy(evals, evals_d_0, evalsSize * sizeof(uint8_t), cudaMemcpyDeviceToHost);
 
-      // call the compute kernel on device (1)   
-      cudaSetDevice(1);	
-      evaluate_gpu<<<nbBlocks, BLOCK_SIZE>>>(N, G, parents_d_1, evals_d_1, evalsSize);
+      // call the compute kernel on device (0)
+      cudaSetDevice(0);
+      evaluate_gpu<<<nbBlocks, BLOCK_SIZE>>>(N, G, parents_d_0, evals_d_0, evalsSize/2);
       cudaDeviceSynchronize();
-      cudaMemcpy(evals, evals_d_1, evalsSize * sizeof(uint8_t), cudaMemcpyDeviceToHost);
+      cudaMemcpy(evals, evals_d_0, evalsSize/2 * sizeof(uint8_t), cudaMemcpyDeviceToHost);
 
-      cudaSetDevice(0);	
+      // call the compute kernel on device (1)
+      cudaSetDevice(1);
+      evaluate_gpu<<<nbBlocks, BLOCK_SIZE>>>(N, G, parents_d_1, evals_d_1, evalsSize/2);
+      cudaDeviceSynchronize();
+      cudaMemcpy(evals + evalsSize/2, evals_d_1, evalsSize/2 * sizeof(uint8_t), cudaMemcpyDeviceToHost);
+
+      cudaSetDevice(0);
       cudaFree(parents_d_0);
       cudaFree(evals_d_0);
 
-      cudaSetDevice(1);	
+      cudaSetDevice(1);
       cudaFree(parents_d_1);
       cudaFree(evals_d_1);
 
@@ -348,11 +351,10 @@ int main(int argc, char* argv[])
   unsigned long long int exploredSol = 0;
 
   double elapsedTime;
-  
+
   nqueens_search(N, G, minSize, maxSize, &exploredTree, &exploredSol, &elapsedTime);
 
   print_results(exploredTree, exploredSol, elapsedTime);
 
   return 0;
 }
-
