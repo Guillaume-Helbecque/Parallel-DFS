@@ -1,22 +1,23 @@
-# Baseline implementations
+# Multi-GPU tree-search to solve N-Queens problem instances
 
-## N-Queens C+CUDA
+This repository contains Chapel and C+Cuda implementations, including both explicit
+data transfers and unified memory variants. Nodes are managed using a hand-coded work pool. The C+Cuda implementations are portable on AMD GPUs using the `hipify-perl` tool.
 
-We implemented two C+CUDA versions of the single-core single-GPU accelerated N-Queens
-search: `nqueens_cuda.cu` uses explicit data transfers between host and device, while
-`nqueens_unified_mem_cuda.cu` exploits unified memory features.
-Nodes are managed using a hand-coded work pool.
-
-To compile and execute:
+## Compilation
+The provided `makefile` produces all the executables in the following form:
 ```
-make
-./nqueens[_unified_mem]_cuda.o -N value -g value -m value -M value
+nqueens[_unified_mem]_[chpl/cuda/hip].o
 ```
-where:
+
+**Note:** By default, the target architecture for Cuda code generation is set to
+`-arch=sm_60`, and to `-offload-arch=gfx906` for AMD. Please adjust these settings
+in `makefile` if needed.
+
+## Command-line options
+The implementations support the following options:
 - `N` is the number of queens;
 - `g` is the number of safety check(s) per evaluation;
 - `m` is the minimum number of elements to offload on GPUs;
 - `M` is the maximum number of elements to offload on GPUs.
 
-**Note:** By default, the target architecture for C code generation is set to
-`-arch=sm_60` in `makefile`.
+All these values must be positive integers.
