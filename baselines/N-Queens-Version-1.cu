@@ -243,6 +243,9 @@ void nqueens_search(const int N, const int G, const int minSize, const int maxSi
   unsigned long long int* exploredTree, unsigned long long int* exploredSol,
   double* elapsedTime)
 {
+  int deviceCount;
+  cudaGetDeviceCount(&deviceCount);
+
   Node root;
   initRoot(&root, N);
 
@@ -278,52 +281,36 @@ void nqueens_search(const int N, const int G, const int minSize, const int maxSi
       const int evalsSize = N * poolSize;
       uint8_t* evals = (uint8_t*)malloc(evalsSize * sizeof(uint8_t));
 
-      Node* parents_d_0;
-      Node* parents_d_1;
-      uint8_t* evals_d_0;
-      uint8_t* evals_d_1;
+      for (int deviceID = 0; deviceID < deviceCount; deviceID++) {
+        Node* parents_d;
+        uint8_t* evals_d;
 
-      /*
-      To finalise the code, we just need to split the data between the GPUs
-      For example, poolSize, and evalSize.
-      The memory also needs to be ajusted on GPUs based on the splited (devided)
-      host side data (for example, evalSize and poolSize)
-      */
+        /*
+        To finalise the code, we just need to split the data between the GPUs
+        For example, poolSize, and evalSize.
+        The memory also needs to be ajusted on GPUs based on the splited (devided)
+        host side data (for example, evalSize and poolSize)
+        */
 
-      // set GPU device (0)
-      cudaSetDevice(0);
-      cudaMalloc(&parents_d_0, poolSize/2 * sizeof(Node));
-      cudaMalloc(&evals_d_0, evalsSize/2 * sizeof(uint8_t));
-      cudaMemcpy(parents_d_0, parents, poolSize/2 * sizeof(Node), cudaMemcpyHostToDevice);
+        // set GPU device (deviceID)
+        cudaSetDevice(deviceID);
+        cudaMalloc(&parents_d, poolSize/deviceCount * sizeof(Node));
+        cudaMalloc(&evals_d, evalsSize/deviceCount * sizeof(uint8_t));
+        cudaMemcpy(parents_d, parents + deviceID * poolSize/deviceCount, poolSize/deviceCount * sizeof(Node), cudaMemcpyHostToDevice);
 
-      // set GPU device (1)
-      cudaSetDevice(1);
-      cudaMalloc(&parents_d_1, poolSize/2 * sizeof(Node));
-      cudaMalloc(&evals_d_1, evalsSize/2 * sizeof(uint8_t));
-      cudaMemcpy(parents_d_1, parents + poolSize/2, poolSize/2 * sizeof(Node), cudaMemcpyHostToDevice);
+        const int nbBlocks = ceil((double)evalsSize / BLOCK_SIZE);
+        count += 1;
 
-      const int nbBlocks = ceil((double)evalsSize / BLOCK_SIZE);
-      count += 1;
+        // call the compute kernel on device (deviceID)
+        cudaSetDevice(deviceID);
+        evaluate_gpu<<<nbBlocks, BLOCK_SIZE>>>(N, G, parents_d, evals_d, evalsSize/deviceCount);
+        cudaDeviceSynchronize();
+        cudaMemcpy(evals + deviceID * evalsSize/deviceCount, evals_d, evalsSize/deviceCount * sizeof(uint8_t), cudaMemcpyDeviceToHost);
 
-      // call the compute kernel on device (0)
-      cudaSetDevice(0);
-      evaluate_gpu<<<nbBlocks, BLOCK_SIZE>>>(N, G, parents_d_0, evals_d_0, evalsSize/2);
-      cudaDeviceSynchronize();
-      cudaMemcpy(evals, evals_d_0, evalsSize/2 * sizeof(uint8_t), cudaMemcpyDeviceToHost);
-
-      // call the compute kernel on device (1)
-      cudaSetDevice(1);
-      evaluate_gpu<<<nbBlocks, BLOCK_SIZE>>>(N, G, parents_d_1, evals_d_1, evalsSize/2);
-      cudaDeviceSynchronize();
-      cudaMemcpy(evals + evalsSize/2, evals_d_1, evalsSize/2 * sizeof(uint8_t), cudaMemcpyDeviceToHost);
-
-      cudaSetDevice(0);
-      cudaFree(parents_d_0);
-      cudaFree(evals_d_0);
-
-      cudaSetDevice(1);
-      cudaFree(parents_d_1);
-      cudaFree(evals_d_1);
+        cudaSetDevice(deviceID);
+        cudaFree(parents_d);
+        cudaFree(evals_d);
+      }
 
       generate_children(N, parents, poolSize, evals, exploredTree, exploredSol, &pool);
 
