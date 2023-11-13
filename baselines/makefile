@@ -2,25 +2,29 @@ SHELL := /bin/bash
 
 # Compilers & common options
 CHPL_COMPILER := chpl
+C_COMPILER    := gcc
 CUDA_COMPILER := nvcc
 HIP_COMPILER  := hipcc
 
 #CHPL_DATA_STRUCT_DIR := ../DistBag-DFS
 CHPL_COMMON_OPTS := --fast
-CUDA_COMMON_OPTS := -O3 -arch=sm_60
-HIP_COMMON_OPTS  := -O3 -offload-arch=gfx906
+C_COMMON_OPTS    := -O3
+CUDA_COMMON_OPTS := $(C_COMMON_OPTS) -arch=sm_60
+HIP_COMMON_OPTS  := $(C_COMMON_OPTS) -offload-arch=gfx906
 
 # Source files
 CHPL_SOURCES := nqueens_chpl.chpl nqueens_unified_mem_chpl.chpl #nqueens_bag_chpl.chpl
+C_SOURCES    := nqueens_c.c
 CUDA_SOURCES := nqueens_cuda.cu nqueens_unified_mem_cuda.cu nqueens_multigpu_cuda.cu
 
 # Object files
 CHPL_OBJECTS := $(CHPL_SOURCES:.chpl=.o)
+C_OBJECTS    := $(C_SOURCES:.c=.o)
 CUDA_OBJECTS := $(CUDA_SOURCES:.cu=.o)
 HIP_OBJECTS  := $(CUDA_SOURCES:cuda.cu=hip.o)
 
 # Build codes
-all: $(CHPL_OBJECTS) $(CUDA_OBJECTS) $(HIP_OBJECTS)
+all: $(CHPL_OBJECTS) $(C_OBJECTS) $(CUDA_OBJECTS) $(HIP_OBJECTS)
 
 # Pattern rule for CHPL source files
 %.o: %.chpl
@@ -28,6 +32,10 @@ all: $(CHPL_OBJECTS) $(CUDA_OBJECTS) $(HIP_OBJECTS)
 
 # nqueens_chpl_bag.o: nqueens_chpl_bag.chpl
 # 	$(CHPL_COMPILER) $(CHPL_COMMON_OPTS) -M $(CHPL_DATA_STRUCT_DIR) nqueens_chpl_bag.chpl -o nqueens_chpl_bag.o
+
+# Pattern rule for C source files
+%.o: %.c
+	$(C_COMPILER) $(C_COMMON_OPTS) $< -o $@
 
 # Pattern rule for CUDA source files
 %.o: %.cu
@@ -42,4 +50,4 @@ all: $(CHPL_OBJECTS) $(CUDA_OBJECTS) $(HIP_OBJECTS)
 .PHONY: clean
 
 clean:
-	rm -f $(CHPL_OBJECTS) $(CUDA_OBJECTS) $(HIP_OBJECTS) *.hip
+	rm -f $(CHPL_OBJECTS) $(C_OBJECTS) $(CUDA_OBJECTS) $(HIP_OBJECTS) *.hip

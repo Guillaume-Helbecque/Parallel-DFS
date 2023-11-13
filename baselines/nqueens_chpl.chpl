@@ -228,16 +228,14 @@ proc nqueens_search(ref exploredTree: uint, ref exploredSol: uint, ref elapsedTi
 
     decompose(parent, exploredTree, exploredSol, pool);
 
-    var poolSize = min(pool.size, M);
-    /*
-      NOTE: For now, we consider that poolSize is an even number to facilitate
-      the partition of work.
-      TODO: Implement general case.
-    */
-    if (poolSize % 2) == 1 then poolSize -= 1;
+    var poolSize = pool.size;
 
     // If 'poolSize' is sufficiently large, we offload the pool on GPU.
     if (poolSize >= m) {
+      // Ensure that poolSize is a multiple of deviceCount
+      poolSize = min(poolSize, M);
+      poolSize = (poolSize / numGpus) * numGpus;
+
       var parents: [0..#poolSize] Node = noinit;
       for i in 0..#poolSize {
         var hasWork = 0;
@@ -247,9 +245,9 @@ proc nqueens_search(ref exploredTree: uint, ref exploredSol: uint, ref elapsedTi
 
       const evalsSize = N * poolSize;
       var evals: [0..#evalsSize] uint(8) = noinit;
-      var gpuChunkSize = evalsSize / numGpus;
+      const gpuChunkSize = evalsSize / numGpus;
 
-      coforall (gpu, gpuID) in zip(here.gpus, here.gpus.domain) with (ref evals) do on gpu {
+      coforall (gpuID, gpu) in zip(0..#numGpus, here.gpus) with (ref evals) do on gpu {
         const myChunk = (gpuID*gpuChunkSize)..#gpuChunkSize;
         const pChunk = (gpuID*gpuChunkSize/N)..#(gpuChunkSize/N);
         const parents_d = parents[pChunk]; // host-to-device
