@@ -6,6 +6,7 @@ use Time;
 use GpuDiagnostics;
 
 config const BLOCK_SIZE = 512;
+config const numGpus = 1;
 
 /*******************************************************************************
 Implementation of N-Queens Nodes.
@@ -44,12 +45,13 @@ the capacity when it is full. Since we perform only DFS, it only supports
 'pushBack' and 'popBack' operations.
 *******************************************************************************/
 
-config param CAPACITY = 1024;
+config param CAPACITY = 500* 1_000_000; //1024;
 
 record SinglePool {
   var dom: domain(1);
   var elements: [dom] Node;
   var capacity: int;
+  var front: int;
   var size: int;
 
   proc init() {
@@ -58,12 +60,12 @@ record SinglePool {
   }
 
   proc ref pushBack(node: Node) {
-    if (this.size >= this.capacity) {
+    /* if (this.front + this.size >= this.capacity) {
       this.capacity *=2;
       this.dom = 0..#this.capacity;
-    }
+    } */
 
-    this.elements[this.size] = node;
+    this.elements[this.front + this.size] = node;
     this.size += 1;
   }
 
@@ -71,7 +73,20 @@ record SinglePool {
     if (this.size > 0) {
       hasWork = 1;
       this.size -= 1;
-      return this.elements[this.size];
+      return this.elements[this.front + this.size];
+    }
+
+    var default: Node;
+    return default;
+  }
+
+  proc ref popFront(ref hasWork: int) {
+    if (this.size > 0) {
+      hasWork = 1;
+      const elt = this.elements[this.front];
+      this.front += 1;
+      this.size -= 1;
+      return elt;
     }
 
     var default: Node;
@@ -154,36 +169,80 @@ proc decompose(const parent: Node, ref tree_loc: uint, ref num_sol: uint, ref po
 }
 
 // Evaluate a bulk of parent nodes on GPU.
-proc evaluate_gpu(const parents_d: [] Node, const myChunk)
+proc evaluate_gpu(const parents_d: [] Node, const size)
 {
-  var evals_d: [myChunk] uint(8) = noinit;
+  var children: [0..#size] Node = noinit;
 
   @assertOnGpu
-  foreach threadId in myChunk {
+  foreach threadId in 0..#size {
     const parentId = threadId / N;
     const k = threadId % N;
     const parent = parents_d[parentId];
     const depth = parent.depth;
     const queen_num = parent.board[k];
 
-    var isSafe: uint(8) = 1;
+    var isSafe: uint(8);
 
     // If child 'k' is not scheduled, we evaluate its safety 'G' times, otherwise 0.
-    const G_notScheduled = g * (k >= depth);
-    for _g in 0..#G_notScheduled {
-      for i in 0..#depth {
-        isSafe *= (parent.board[i] != queen_num - (depth - i) &&
-                   parent.board[i] != queen_num + (depth - i));
+    if (k >= depth) {
+      isSafe = 1;
+      /* const G_notScheduled = g * (k >= depth); */
+      for _g in 0..#g {//G_notScheduled {
+        for i in 0..#depth {
+          isSafe *= (parent.board[i] != queen_num - (depth - i) &&
+                     parent.board[i] != queen_num + (depth - i));
+        }
+        /* evals_d[threadId] = isSafe; */
       }
-      evals_d[threadId] = isSafe;
+    }
+
+    children[threadId].depth = 0;
+
+    if isSafe {
+      ref child = children[threadId];
+      child.depth = parent.depth;
+      child.board = parent.board;
+      child.board[depth] <=> child.board[k];
+      child.depth += 1;
     }
   }
 
-  return evals_d;
+  return children;
 }
 
 // Generate children nodes (evaluated by GPU) on CPU.
-proc generate_children(const parents: [] Node, const size: int, const evals: [] uint(8),
+proc generate_gpu(const parents: [] Node, const size: int, const evals: [] uint(8),
+  ref exploredTree: uint, ref exploredSol: uint)
+{
+  var children: [0..#size] Node = noinit;
+
+  @assertOnGpu
+  foreach i in 0..#size {
+    const parentId = i / N;
+    const k = i % N;
+    const parent = parents[parentId];
+    const depth = parent.depth;
+
+    children[i].depth = 0;
+
+    /* if (depth == N) {
+      exploredSol += 1;
+    } */
+    if (evals[i] == 1) {
+      ref child = children[i];
+      child.depth = parent.depth;
+      child.board = parent.board;
+      child.board[depth] <=> child.board[k];
+      child.depth += 1;
+      /* exploredTree += 1; */
+    }
+  }
+
+  return children;
+}
+
+// Generate children nodes (evaluated by GPU) on CPU.
+/* proc generate_children(const parents: [] Node, const size: int, const evals: [] uint(8),
   ref exploredTree: uint, ref exploredSol: uint, ref pool: SinglePool)
 {
   for i in 0..#size  {
@@ -205,13 +264,11 @@ proc generate_children(const parents: [] Node, const size: int, const evals: [] 
       }
     }
   }
-}
+} */
 
 // Single-core single-GPU N-Queens search.
 proc nqueens_search(ref exploredTree: uint, ref exploredSol: uint, ref elapsedTime: real)
 {
-  const numGpus = here.gpus.size;
-
   var root = new Node(N);
 
   var pool: SinglePool;
@@ -219,48 +276,145 @@ proc nqueens_search(ref exploredTree: uint, ref exploredSol: uint, ref elapsedTi
   pool.pushBack(root);
 
   var timer: stopwatch;
-  timer.start();
 
+  /*
+    Step 1: We perform a partial breadth-first search on CPU in order to create
+    a sufficiently large amount of work for GPU computation.
+  */
+  timer.start();
+  while (pool.size < numGpus*m) {
+    var hasWork = 0;
+    var parent = pool.popFront(hasWork);
+    if !hasWork then break;
+
+    decompose(parent, exploredTree, exploredSol, pool);
+  }
+  timer.stop();
+  var t = timer.elapsed();
+  writeln("\nInitial search on CPU completed");
+  writeln("Size of the explored tree: ", exploredTree);
+  writeln("Number of explored solutions: ", exploredSol);
+  writeln("Elapsed time: ", t, " [s]\n");
+
+  /*
+    Step 2: We continue the search on GPU in a depth-first manner, until there
+    is not enough work.
+  */
+  timer.start();
+  var eachExploredTree, eachExploredSol: [0..#numGpus] uint;
+
+  var chunkSize: [0..#numGpus] int = noinit;
+  var poolSize = pool.size;
+  const c = pool.size / numGpus;
+  for i in 0..#(numGpus-1) do chunkSize[i] = c;
+  chunkSize[numGpus-1] = poolSize - (numGpus-1)*c;
+  const f = pool.front;
+
+  var lock: atomic bool;
+
+  pool.front = 0;
+  pool.size = 0;
+
+  coforall (gpuID, gpu) in zip(0..#numGpus, here.gpus) with (ref pool,
+    ref eachExploredTree, ref eachExploredSol) {
+
+    var pool_loc: SinglePool;
+
+    // each task gets its chunk
+    pool_loc.elements[0..#c] = pool.elements[gpuID+f.. by numGpus #c];
+    if (gpuID == numGpus-1) {
+      pool_loc.elements[c..#(chunkSize[gpuID]-c)] = pool.elements[(numGpus*c)+f..#(chunkSize[gpuID]-c)];
+    }
+    pool_loc.size += chunkSize[gpuID];
+
+    ref exploredTree = eachExploredTree[gpuID];
+    ref exploredSol = eachExploredSol[gpuID];
+
+    var timer_s: stopwatch;
+    while true {
+      /* break; */
+      /*
+        Each task gets its parents nodes from the pool.
+      */
+      var poolSize = pool_loc.size;
+      if (poolSize >= m) {
+        poolSize = min(poolSize, M);
+        var parents: [0..#poolSize] Node = noinit;
+        for i in 0..#poolSize {
+          var hasWork = 0;
+          parents[i] = pool_loc.popFront(hasWork);
+          if !hasWork then break;
+        }
+
+        const evalsSize = N * poolSize;
+        var children: [0..#evalsSize] Node = noinit;
+
+        on gpu {
+          const parents_d = parents; // host-to-device
+          /* const evals_d = evaluate_gpu(parents_d, evalsSize); // device-to-host copy + kernel */
+          /* children = generate_gpu(parents_d, evalsSize, evals_d, exploredTree, exploredSol); */
+          children = evaluate_gpu(parents_d, evalsSize);
+        }
+
+        /*
+          Each task 0 generates and inserts its children nodes to the pool.
+        */
+        timer_s.start();
+        for i in 0..#evalsSize {
+          if children[i].depth != 0 {
+            if (children[i].depth == N) then exploredSol += 1;
+            pool_loc.pushBack(children[i]);
+            exploredTree += 1;
+          }
+        }
+        timer_s.stop();
+      }
+      else {
+        break;
+      }
+    }
+    writeln("timer on task ", gpuID, " : ", timer_s.elapsed());
+
+    if lock.compareAndSwap(false, true) {
+      for p in 0..#pool_loc.size {
+        var hasWork = 0;
+        pool.pushBack(pool_loc.popBack(hasWork));
+        if !hasWork then break;
+      }
+      lock.write(false);
+    }
+  }
+  timer.stop();
+  t = timer.elapsed() - t;
+
+  writeln("eachExploredTree = ", eachExploredTree);
+
+  exploredTree += (+ reduce eachExploredTree);
+  exploredSol += (+ reduce eachExploredSol);
+
+  writeln("Search on GPU completed");
+  writeln("Size of the explored tree: ", exploredTree);
+  writeln("Number of explored solutions: ", exploredSol);
+  writeln("Elapsed time: ", t, " [s]\n");
+
+  /*
+    Step 3: We complete the depth-first search on CPU.
+  */
+  writeln("poolSize = ", pool.size);
+  timer.start();
   while true {
     var hasWork = 0;
     var parent = pool.popBack(hasWork);
     if !hasWork then break;
 
     decompose(parent, exploredTree, exploredSol, pool);
-
-    var poolSize = pool.size;
-
-    // If 'poolSize' is sufficiently large, we offload the pool on GPU.
-    if (poolSize >= m) {
-      // Ensure that poolSize is a multiple of deviceCount
-      poolSize = min(poolSize, M);
-      poolSize = (poolSize / numGpus) * numGpus;
-
-      var parents: [0..#poolSize] Node = noinit;
-      for i in 0..#poolSize {
-        var hasWork = 0;
-        parents[i] = pool.popBack(hasWork);
-        if !hasWork then break;
-      }
-
-      const evalsSize = N * poolSize;
-      var evals: [0..#evalsSize] uint(8) = noinit;
-      const gpuChunkSize = evalsSize / numGpus;
-
-      coforall (gpuID, gpu) in zip(0..#numGpus, here.gpus) with (ref evals) do on gpu {
-        const myChunk = (gpuID*gpuChunkSize)..#gpuChunkSize;
-        const pChunk = (gpuID*gpuChunkSize/N)..#(gpuChunkSize/N);
-        const parents_d = parents[pChunk]; // host-to-device
-
-        evals[myChunk] = evaluate_gpu(parents_d, myChunk); // device-to-host copy + kernel
-      }
-
-      generate_children(parents, poolSize, evals, exploredTree, exploredSol, pool);
-    }
   }
-
   timer.stop();
   elapsedTime = timer.elapsed();
+  writeln("Search on CPU completed");
+  writeln("Size of the explored tree: ", exploredTree);
+  writeln("Number of explored solutions: ", exploredSol);
+  writeln("Elapsed time: ", elapsedTime - t, " [s]");
 
   writeln("\nExploration terminated.");
 }
