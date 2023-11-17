@@ -45,7 +45,7 @@ the capacity when it is full. Since we perform only DFS, it only supports
 'pushBack' and 'popBack' operations.
 *******************************************************************************/
 
-config param CAPACITY = 500* 1_000_000; //1024;
+config param CAPACITY = 1024;
 
 record SinglePool {
   var dom: domain(1);
@@ -60,10 +60,10 @@ record SinglePool {
   }
 
   proc ref pushBack(node: Node) {
-    /* if (this.front + this.size >= this.capacity) {
+    if (this.front + this.size >= this.capacity) {
       this.capacity *=2;
       this.dom = 0..#this.capacity;
-    } */
+    }
 
     this.elements[this.front + this.size] = node;
     this.size += 1;
@@ -171,7 +171,7 @@ proc decompose(const parent: Node, ref tree_loc: uint, ref num_sol: uint, ref po
 // Evaluate a bulk of parent nodes on GPU.
 proc evaluate_gpu(const parents_d: [] Node, const size)
 {
-  var children: [0..#size] Node = noinit;
+  var evals: [0..#size] uint(8) = noinit;
 
   @assertOnGpu
   foreach threadId in 0..#size {
@@ -192,57 +192,16 @@ proc evaluate_gpu(const parents_d: [] Node, const size)
           isSafe *= (parent.board[i] != queen_num - (depth - i) &&
                      parent.board[i] != queen_num + (depth - i));
         }
-        /* evals_d[threadId] = isSafe; */
       }
-    }
-
-    children[threadId].depth = 0;
-
-    if isSafe {
-      ref child = children[threadId];
-      child.depth = parent.depth;
-      child.board = parent.board;
-      child.board[depth] <=> child.board[k];
-      child.depth += 1;
+      evals[threadId] = isSafe;
     }
   }
 
-  return children;
+  return evals;
 }
 
 // Generate children nodes (evaluated by GPU) on CPU.
-proc generate_gpu(const parents: [] Node, const size: int, const evals: [] uint(8),
-  ref exploredTree: uint, ref exploredSol: uint)
-{
-  var children: [0..#size] Node = noinit;
-
-  @assertOnGpu
-  foreach i in 0..#size {
-    const parentId = i / N;
-    const k = i % N;
-    const parent = parents[parentId];
-    const depth = parent.depth;
-
-    children[i].depth = 0;
-
-    /* if (depth == N) {
-      exploredSol += 1;
-    } */
-    if (evals[i] == 1) {
-      ref child = children[i];
-      child.depth = parent.depth;
-      child.board = parent.board;
-      child.board[depth] <=> child.board[k];
-      child.depth += 1;
-      /* exploredTree += 1; */
-    }
-  }
-
-  return children;
-}
-
-// Generate children nodes (evaluated by GPU) on CPU.
-/* proc generate_children(const parents: [] Node, const size: int, const evals: [] uint(8),
+proc generate_children(const ref parents: [] Node, const size: int, const ref evals: [] uint(8),
   ref exploredTree: uint, ref exploredSol: uint, ref pool: SinglePool)
 {
   for i in 0..#size  {
@@ -255,23 +214,22 @@ proc generate_gpu(const parents: [] Node, const size: int, const evals: [] uint(
     for j in depth..(N-1) {
       if (evals[j + i * N] == 1) {
         var child = new Node();
-        child.depth = parent.depth;
+        child.depth = depth + 1;
         child.board = parent.board;
         child.board[depth] <=> child.board[j];
-        child.depth += 1;
         pool.pushBack(child);
         exploredTree += 1;
       }
     }
   }
-} */
+}
 
 // Single-core single-GPU N-Queens search.
 proc nqueens_search(ref exploredTree: uint, ref exploredSol: uint, ref elapsedTime: real)
 {
   var root = new Node(N);
 
-  var pool: SinglePool;
+  var pool = new SinglePool();
 
   pool.pushBack(root);
 
@@ -303,13 +261,10 @@ proc nqueens_search(ref exploredTree: uint, ref exploredSol: uint, ref elapsedTi
   timer.start();
   var eachExploredTree, eachExploredSol: [0..#numGpus] uint;
 
-  var chunkSize: [0..#numGpus] int = noinit;
-  var poolSize = pool.size;
+  const poolSize = pool.size;
   const c = pool.size / numGpus;
-  for i in 0..#(numGpus-1) do chunkSize[i] = c;
-  chunkSize[numGpus-1] = poolSize - (numGpus-1)*c;
+  const l = poolSize - (numGpus-1)*c;
   const f = pool.front;
-
   var lock: atomic bool;
 
   pool.front = 0;
@@ -318,21 +273,18 @@ proc nqueens_search(ref exploredTree: uint, ref exploredSol: uint, ref elapsedTi
   coforall (gpuID, gpu) in zip(0..#numGpus, here.gpus) with (ref pool,
     ref eachExploredTree, ref eachExploredSol) {
 
-    var pool_loc: SinglePool;
+    var tree, sol: uint;
+    var pool_loc = new SinglePool();
 
     // each task gets its chunk
     pool_loc.elements[0..#c] = pool.elements[gpuID+f.. by numGpus #c];
+    pool_loc.size += c;
     if (gpuID == numGpus-1) {
-      pool_loc.elements[c..#(chunkSize[gpuID]-c)] = pool.elements[(numGpus*c)+f..#(chunkSize[gpuID]-c)];
+      pool_loc.elements[c..#(l-c)] = pool.elements[(numGpus*c)+f..#(l-c)];
+      pool_loc.size += l-c;
     }
-    pool_loc.size += chunkSize[gpuID];
 
-    ref exploredTree = eachExploredTree[gpuID];
-    ref exploredSol = eachExploredSol[gpuID];
-
-    var timer_s: stopwatch;
     while true {
-      /* break; */
       /*
         Each task gets its parents nodes from the pool.
       */
@@ -342,38 +294,27 @@ proc nqueens_search(ref exploredTree: uint, ref exploredSol: uint, ref elapsedTi
         var parents: [0..#poolSize] Node = noinit;
         for i in 0..#poolSize {
           var hasWork = 0;
-          parents[i] = pool_loc.popFront(hasWork);
+          parents[i] = pool_loc.popBack(hasWork);
           if !hasWork then break;
         }
 
         const evalsSize = N * poolSize;
-        var children: [0..#evalsSize] Node = noinit;
+        var evals: [0..#evalsSize] uint(8) = noinit;
 
         on gpu {
           const parents_d = parents; // host-to-device
-          /* const evals_d = evaluate_gpu(parents_d, evalsSize); // device-to-host copy + kernel */
-          /* children = generate_gpu(parents_d, evalsSize, evals_d, exploredTree, exploredSol); */
-          children = evaluate_gpu(parents_d, evalsSize);
+          evals = evaluate_gpu(parents_d, evalsSize);
         }
 
         /*
           Each task 0 generates and inserts its children nodes to the pool.
         */
-        timer_s.start();
-        for i in 0..#evalsSize {
-          if children[i].depth != 0 {
-            if (children[i].depth == N) then exploredSol += 1;
-            pool_loc.pushBack(children[i]);
-            exploredTree += 1;
-          }
-        }
-        timer_s.stop();
+        generate_children(parents, poolSize, evals, tree, sol, pool_loc);
       }
       else {
         break;
       }
     }
-    writeln("timer on task ", gpuID, " : ", timer_s.elapsed());
 
     if lock.compareAndSwap(false, true) {
       for p in 0..#pool_loc.size {
@@ -383,11 +324,12 @@ proc nqueens_search(ref exploredTree: uint, ref exploredSol: uint, ref elapsedTi
       }
       lock.write(false);
     }
+
+    eachExploredTree[gpuID] = tree;
+    eachExploredSol[gpuID] = sol;
   }
   timer.stop();
   t = timer.elapsed() - t;
-
-  writeln("eachExploredTree = ", eachExploredTree);
 
   exploredTree += (+ reduce eachExploredTree);
   exploredSol += (+ reduce eachExploredSol);
@@ -400,7 +342,6 @@ proc nqueens_search(ref exploredTree: uint, ref exploredSol: uint, ref elapsedTi
   /*
     Step 3: We complete the depth-first search on CPU.
   */
-  writeln("poolSize = ", pool.size);
   timer.start();
   while true {
     var hasWork = 0;
