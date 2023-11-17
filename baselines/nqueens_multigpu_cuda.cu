@@ -8,6 +8,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <time.h>
+#include <omp.h>
 #include "cuda_runtime.h"
 
 #define BLOCK_SIZE 512
@@ -47,6 +48,7 @@ typedef struct
 {
   Node* elements;
   int capacity;
+  int front;
   int size;
 } SinglePool;
 
@@ -54,24 +56,38 @@ void initSinglePool(SinglePool* pool)
 {
   pool->elements = (Node*)malloc(CAPACITY * sizeof(Node));
   pool->capacity = CAPACITY;
+  pool->front = 0;
   pool->size = 0;
 }
 
 void pushBack(SinglePool* pool, Node node)
 {
-  if (pool->size >= pool->capacity) {
+  if (pool->front + pool->size >= pool->capacity) {
     pool->capacity *= 2;
     pool->elements = (Node*)realloc(pool->elements, pool->capacity * sizeof(Node));
   }
 
-  pool->elements[pool->size++] = node;
+  pool->elements[pool->front + pool->size] = node;
+  pool->size += 1;
 }
 
 Node popBack(SinglePool* pool, int* hasWork)
 {
   if (pool->size > 0) {
     *hasWork = 1;
-    return pool->elements[--pool->size];
+    pool->size -= 1;
+    return pool->elements[pool->front + pool->size];
+  }
+
+  return (Node){0};
+}
+
+Node popFront(SinglePool* pool, int* hasWork)
+{
+  if (pool->size > 0) {
+    *hasWork = 1;
+    pool->size--;
+    return pool->elements[pool->front++];
   }
 
   return (Node){0};
@@ -86,16 +102,17 @@ void deleteSinglePool(SinglePool* pool)
 Implementation of the single-core single-GPU N-Queens search.
 *******************************************************************************/
 
-void parse_parameters(int argc, char* argv[], int* N, int* G, int* m, int* M)
+void parse_parameters(int argc, char* argv[], int* N, int* G, int* m, int* M, int* p)
 {
   *N = 14;
   *G = 1;
   *m = 25;
   *M = 50000;
+  *p = 1;
 
   int opt, value;
 
-  while ((opt = getopt(argc, argv, "N:g:m:M:")) != -1) {
+  while ((opt = getopt(argc, argv, "N:g:m:M:p:")) != -1) {
     value = atoi(optarg);
 
     if (value <= 0) {
@@ -116,8 +133,11 @@ void parse_parameters(int argc, char* argv[], int* N, int* G, int* m, int* M)
       case 'M':
         *M = value;
         break;
+      case 'p':
+        *p = value;
+        break;
       default:
-        fprintf(stderr, "Usage: %s -N value -g value -m value -M value\n", argv[0]);
+        fprintf(stderr, "Usage: %s -N value -g value -m value -M value -p value\n", argv[0]);
         exit(EXIT_FAILURE);
     }
   }
@@ -200,14 +220,17 @@ __global__ void evaluate_gpu(const int N, const int G, const Node* parents_d, ui
     const uint8_t depth = parent.depth;
     const uint8_t queen_num = parent.board[k];
 
-    uint8_t isSafe = 1;
+    uint8_t isSafe = 0;
 
     // If child 'k' is not scheduled, we evaluate its safety 'G' times, otherwise 0.
-    const int G_notScheduled = G * (k >= depth);
-    for (int g = 0; g < G_notScheduled; g++) {
-      for (int i = 0; i < depth; i++) {
-        isSafe *= (parent.board[i] != queen_num - (depth - i) &&
-                   parent.board[i] != queen_num + (depth - i));
+    if (k >= depth) {
+      isSafe = 1;
+      // const int G_notScheduled = G * (k >= depth);
+      for (int g = 0; g < G; g++) {
+        for (int i = 0; i < depth; i++) {
+          isSafe *= (parent.board[i] != queen_num - (depth - i) &&
+                     parent.board[i] != queen_num + (depth - i));
+        }
       }
       evals_d[threadId] = isSafe;
     }
@@ -239,12 +262,11 @@ void generate_children(const int N, const Node* parents, const int size, const u
 }
 
 // Single-core single-GPU N-Queens search.
-void nqueens_search(const int N, const int G, const int m, const int M,
+void nqueens_search(const int N, const int G, const int m, const int M, const int p,
   unsigned long long int* exploredTree, unsigned long long int* exploredSol,
   double* elapsedTime)
 {
-  int deviceCount;
-  cudaGetDeviceCount(&deviceCount);
+  int deviceCount = p;
 
   Node root;
   initRoot(&root, N);
@@ -255,75 +277,151 @@ void nqueens_search(const int N, const int G, const int m, const int M,
   pushBack(&pool, root);
 
   int count = 0;
-  clock_t startTime = clock();
+  clock_t startTime, endTime;
 
+  /*
+    Step 1: We perform a partial breadth-first search on CPU in order to create
+    a sufficiently large amount of work for GPU computation.
+  */
+  startTime = clock();
+  while (pool.size < deviceCount * m) {
+    int hasWork = 0;
+    Node parent = popFront(&pool, &hasWork);
+    if (!hasWork) break;
+
+    decompose(N, G, parent, exploredTree, exploredSol, &pool);
+  }
+  endTime = clock();
+  double t = (double)(endTime - startTime) / CLOCKS_PER_SEC;
+  printf("\nInitial search on CPU completed\n");
+  printf("Size of the explored tree: %llu\n", *exploredTree);
+  printf("Number of explored solutions: %llu\n", *exploredSol);
+  printf("Elapsed time: %f [s]\n", t);
+
+  /*
+    Step 2: We continue the search on GPU in a depth-first manner, until there
+    is not enough work.
+  */
+  unsigned long long int eachExploredTree[deviceCount], eachExploredSol[deviceCount];
+
+  const int poolSize = pool.size;
+  const int c = poolSize / deviceCount;
+  const int l = poolSize - (deviceCount-1)*c;
+  const int f = pool.front;
+
+  pool.front = 0;
+  pool.size = 0;
+
+  printf("poolSize = %d\n", poolSize);
+  printf("c = %d\n", c);
+  printf("l = %d\n", l);
+  printf("f = %d\n", f);
+
+  #pragma omp parallel for num_threads(deviceCount) shared(eachExploredTree, eachExploredSol, pool)
+  for (int gpuID = 0; gpuID < deviceCount; gpuID++) {
+    cudaSetDevice(gpuID);
+
+    unsigned long long int tree = 0, sol = 0;
+    SinglePool pool_loc;
+    initSinglePool(&pool_loc);
+
+    for (int i = 0; i < c; i++) {
+      pool_loc.elements[i] = pool.elements[gpuID+f+i*deviceCount];
+    }
+    pool_loc.size += c;
+    if (gpuID == deviceCount-1) {
+      for (int i = c; i < l; i++) {
+        pool_loc.elements[i] = pool.elements[(deviceCount*c)+f+i-c];
+      }
+      pool_loc.size += l-c;
+    }
+
+    while (1) {
+      int poolSize = pool_loc.size;
+      if (poolSize >= m) {
+        poolSize = MIN(poolSize, M);
+        // Node parents[poolSize];
+        Node* parents = (Node*)malloc(poolSize * sizeof(Node));
+        for (int i = 0; i < poolSize; i++) {
+          int hasWork = 0;
+          parents[i] = popBack(&pool_loc, &hasWork);
+          if (!hasWork) break;
+        }
+
+        const int evalsSize = N * poolSize;
+        // uint8_t evals[evalsSize];
+        uint8_t* evals = (uint8_t*)malloc(evalsSize * sizeof(uint8_t));
+
+        Node* parents_d;
+        uint8_t* evals_d;
+
+        cudaMalloc(&parents_d, poolSize * sizeof(Node));
+        cudaMalloc(&evals_d, evalsSize * sizeof(uint8_t));
+        cudaMemcpy(parents_d, parents, poolSize * sizeof(Node), cudaMemcpyHostToDevice);
+
+        const int nbBlocks = ceil((double)evalsSize / BLOCK_SIZE);
+        count += 1;
+
+        // call the compute kernel on device (deviceID)
+        evaluate_gpu<<<nbBlocks, BLOCK_SIZE>>>(N, G, parents_d, evals_d, evalsSize);
+        cudaMemcpy(evals, evals_d, evalsSize * sizeof(uint8_t), cudaMemcpyDeviceToHost);
+
+        cudaFree(parents_d);
+        cudaFree(evals_d);
+
+        generate_children(N, parents, poolSize, evals, &tree, &sol, &pool_loc);
+
+        free(parents);
+        free(evals);
+      }
+      else {
+        break;
+      }
+    }
+
+    #pragma omp critical
+    {
+      for (int p = 0; p < pool_loc.size; p++) {
+        int hasWork = 0;
+        pushBack(&pool, popBack(&pool_loc, &hasWork));
+        if (!hasWork) break;
+      }
+    }
+
+    eachExploredTree[gpuID] = tree;
+    eachExploredSol[gpuID] = sol;
+
+    deleteSinglePool(&pool_loc);
+  }
+  endTime = clock();
+  t = (double)(endTime - startTime) / CLOCKS_PER_SEC;
+
+  for (int i = 0; i < deviceCount; i++) {
+    *exploredTree += eachExploredTree[i];
+    *exploredSol += eachExploredSol[i];
+  }
+
+  printf("\nSearch on GPU completed\n");
+  printf("Size of the explored tree: %llu\n", *exploredTree);
+  printf("Number of explored solutions: %llu\n", *exploredSol);
+  printf("Elapsed time: %f [s]\n", t);
+
+  /*
+    Step 3: We complete the depth-first search on CPU.
+  */
   while (1) {
     int hasWork = 0;
     Node parent = popBack(&pool, &hasWork);
     if (!hasWork) break;
 
     decompose(N, G, parent, exploredTree, exploredSol, &pool);
-
-    int poolSize = pool.size;
-
-    // If 'poolSize' is sufficiently large, we offload the pool on GPU.
-    if (poolSize >= m) {
-      // Ensure that poolSize is a multiple of deviceCount
-      poolSize = MIN(poolSize, M);
-      poolSize = (poolSize / deviceCount) * deviceCount;
-
-      Node* parents = (Node*)malloc(poolSize * sizeof(Node));
-      for (int i = 0; i < poolSize; i++) {
-        int hasWork = 0;
-        parents[i] = popBack(&pool, &hasWork);
-        if (!hasWork) break;
-      }
-
-      const int evalsSize = N * poolSize;
-      uint8_t* evals = (uint8_t*)malloc(evalsSize * sizeof(uint8_t));
-
-      const int poolSize_d = poolSize / deviceCount;
-      const int evalsSize_d = evalsSize / deviceCount;
-
-      for (int deviceID = 0; deviceID < deviceCount; deviceID++) {
-        // set GPU device (deviceID)
-        cudaSetDevice(deviceID);
-
-        Node* parents_d;
-        uint8_t* evals_d;
-
-        /*
-        To finalise the code, we just need to split the data between the GPUs
-        For example, poolSize, and evalSize.
-        The memory also needs to be ajusted on GPUs based on the splited (devided)
-        host side data (for example, evalSize and poolSize)
-        */
-
-        cudaMalloc(&parents_d, poolSize_d * sizeof(Node));
-        cudaMalloc(&evals_d, evalsSize_d * sizeof(uint8_t));
-        cudaMemcpy(parents_d, parents + deviceID * poolSize_d, poolSize_d * sizeof(Node), cudaMemcpyHostToDevice);
-
-        const int nbBlocks = ceil((double)evalsSize / BLOCK_SIZE);
-        count += 1;
-
-        // call the compute kernel on device (deviceID)
-        evaluate_gpu<<<nbBlocks, BLOCK_SIZE>>>(N, G, parents_d, evals_d, evalsSize_d);
-        cudaMemcpy(evals + deviceID * evalsSize_d, evals_d, evalsSize_d * sizeof(uint8_t), cudaMemcpyDeviceToHost);
-
-        cudaFree(parents_d);
-        cudaFree(evals_d);
-      }
-      cudaDeviceSynchronize(); // not sure it is needed...
-
-      generate_children(N, parents, poolSize, evals, exploredTree, exploredSol, &pool);
-
-      free(parents);
-      free(evals);
-    }
   }
-
-  clock_t endTime = clock();
+  endTime = clock();
   *elapsedTime = (double)(endTime - startTime) / CLOCKS_PER_SEC;
+  printf("\nSearch on CPU completed\n");
+  printf("Size of the explored tree: %llu\n", *exploredTree);
+  printf("Number of explored solutions: %llu\n", *exploredSol);
+  printf("Elapsed time: %f [s]\n", *elapsedTime - t);
 
   printf("\nExploration terminated.\n");
   printf("Cuda kernel calls: %d\n", count);
@@ -333,8 +431,8 @@ void nqueens_search(const int N, const int G, const int m, const int M,
 
 int main(int argc, char* argv[])
 {
-  int N, G, m, M;
-  parse_parameters(argc, argv, &N, &G, &m, &M);
+  int N, G, m, M, p;
+  parse_parameters(argc, argv, &N, &G, &m, &M, &p);
   print_settings(N, G);
 
   unsigned long long int exploredTree = 0;
@@ -342,7 +440,7 @@ int main(int argc, char* argv[])
 
   double elapsedTime;
 
-  nqueens_search(N, G, m, M, &exploredTree, &exploredSol, &elapsedTime);
+  nqueens_search(N, G, m, M, p, &exploredTree, &exploredSol, &elapsedTime);
 
   print_results(exploredTree, exploredSol, elapsedTime);
 
