@@ -277,13 +277,13 @@ void nqueens_search(const int N, const int G, const int m, const int M, const in
   pushBack(&pool, root);
 
   int count = 0;
-  clock_t startTime, endTime;
+  double startTime, endTime;
 
   /*
     Step 1: We perform a partial breadth-first search on CPU in order to create
     a sufficiently large amount of work for GPU computation.
   */
-  startTime = clock();
+  startTime = omp_get_wtime();
   while (pool.size < deviceCount * m) {
     int hasWork = 0;
     Node parent = popFront(&pool, &hasWork);
@@ -291,8 +291,8 @@ void nqueens_search(const int N, const int G, const int m, const int M, const in
 
     decompose(N, G, parent, exploredTree, exploredSol, &pool);
   }
-  endTime = clock();
-  double t = (double)(endTime - startTime) / CLOCKS_PER_SEC;
+  endTime = omp_get_wtime();
+  double t = endTime - startTime;
   printf("\nInitial search on CPU completed\n");
   printf("Size of the explored tree: %llu\n", *exploredTree);
   printf("Number of explored solutions: %llu\n", *exploredSol);
@@ -311,11 +311,6 @@ void nqueens_search(const int N, const int G, const int m, const int M, const in
 
   pool.front = 0;
   pool.size = 0;
-
-  printf("poolSize = %d\n", poolSize);
-  printf("c = %d\n", c);
-  printf("l = %d\n", l);
-  printf("f = %d\n", f);
 
   #pragma omp parallel for num_threads(deviceCount) shared(eachExploredTree, eachExploredSol, pool)
   for (int gpuID = 0; gpuID < deviceCount; gpuID++) {
@@ -340,7 +335,6 @@ void nqueens_search(const int N, const int G, const int m, const int M, const in
       int poolSize = pool_loc.size;
       if (poolSize >= m) {
         poolSize = MIN(poolSize, M);
-        // Node parents[poolSize];
         Node* parents = (Node*)malloc(poolSize * sizeof(Node));
         for (int i = 0; i < poolSize; i++) {
           int hasWork = 0;
@@ -349,7 +343,6 @@ void nqueens_search(const int N, const int G, const int m, const int M, const in
         }
 
         const int evalsSize = N * poolSize;
-        // uint8_t evals[evalsSize];
         uint8_t* evals = (uint8_t*)malloc(evalsSize * sizeof(uint8_t));
 
         Node* parents_d;
@@ -393,8 +386,8 @@ void nqueens_search(const int N, const int G, const int m, const int M, const in
 
     deleteSinglePool(&pool_loc);
   }
-  endTime = clock();
-  t = (double)(endTime - startTime) / CLOCKS_PER_SEC;
+  endTime = omp_get_wtime();
+  t = endTime - startTime;
 
   for (int i = 0; i < deviceCount; i++) {
     *exploredTree += eachExploredTree[i];
@@ -416,8 +409,8 @@ void nqueens_search(const int N, const int G, const int m, const int M, const in
 
     decompose(N, G, parent, exploredTree, exploredSol, &pool);
   }
-  endTime = clock();
-  *elapsedTime = (double)(endTime - startTime) / CLOCKS_PER_SEC;
+  endTime = omp_get_wtime();
+  *elapsedTime = endTime - startTime;
   printf("\nSearch on CPU completed\n");
   printf("Size of the explored tree: %llu\n", *exploredTree);
   printf("Number of explored solutions: %llu\n", *exploredSol);
