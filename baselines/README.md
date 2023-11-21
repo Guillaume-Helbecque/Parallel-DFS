@@ -17,7 +17,8 @@ in `makefile` if needed.
 The implementations support the following options:
 - `N` is the number of queens;
 - `g` is the number of safety check(s) per evaluation;
-- `m` is the minimum number of elements to offload on GPUs;
-- `M` is the maximum number of elements to offload on GPUs.
+- `m` is the minimum number of elements to offload on GPU devices;
+- `M` is the maximum number of elements to offload on GPU devices;
+- `D` is the number of GPU devices.
 
 All these values must be positive integers.

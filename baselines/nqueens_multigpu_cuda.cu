@@ -102,17 +102,17 @@ void deleteSinglePool(SinglePool* pool)
 Implementation of the single-core single-GPU N-Queens search.
 *******************************************************************************/
 
-void parse_parameters(int argc, char* argv[], int* N, int* G, int* m, int* M, int* p)
+void parse_parameters(int argc, char* argv[], int* N, int* G, int* m, int* M, int* D)
 {
   *N = 14;
   *G = 1;
   *m = 25;
   *M = 50000;
-  *p = 1;
+  *D = 1;
 
   int opt, value;
 
-  while ((opt = getopt(argc, argv, "N:g:m:M:p:")) != -1) {
+  while ((opt = getopt(argc, argv, "N:g:m:M:D:")) != -1) {
     value = atoi(optarg);
 
     if (value <= 0) {
@@ -133,11 +133,11 @@ void parse_parameters(int argc, char* argv[], int* N, int* G, int* m, int* M, in
       case 'M':
         *M = value;
         break;
-      case 'p':
-        *p = value;
+      case 'D':
+        *D = value;
         break;
       default:
-        fprintf(stderr, "Usage: %s -N value -g value -m value -M value -p value\n", argv[0]);
+        fprintf(stderr, "Usage: %s -N value -g value -m value -M value -D value\n", argv[0]);
         exit(EXIT_FAILURE);
     }
   }
@@ -262,12 +262,10 @@ void generate_children(const int N, const Node* parents, const int size, const u
 }
 
 // Single-core single-GPU N-Queens search.
-void nqueens_search(const int N, const int G, const int m, const int M, const int p,
+void nqueens_search(const int N, const int G, const int m, const int M, const int D,
   unsigned long long int* exploredTree, unsigned long long int* exploredSol,
   double* elapsedTime)
 {
-  int deviceCount = p;
-
   Node root;
   initRoot(&root, N);
 
@@ -284,7 +282,7 @@ void nqueens_search(const int N, const int G, const int m, const int M, const in
     a sufficiently large amount of work for GPU computation.
   */
   startTime = omp_get_wtime();
-  while (pool.size < deviceCount * m) {
+  while (pool.size < D * m) {
     int hasWork = 0;
     Node parent = popFront(&pool, &hasWork);
     if (!hasWork) break;
@@ -302,18 +300,18 @@ void nqueens_search(const int N, const int G, const int m, const int M, const in
     Step 2: We continue the search on GPU in a depth-first manner, until there
     is not enough work.
   */
-  unsigned long long int eachExploredTree[deviceCount], eachExploredSol[deviceCount];
+  unsigned long long int eachExploredTree[D], eachExploredSol[D];
 
   const int poolSize = pool.size;
-  const int c = poolSize / deviceCount;
-  const int l = poolSize - (deviceCount-1)*c;
+  const int c = poolSize / D;
+  const int l = poolSize - (D-1)*c;
   const int f = pool.front;
 
   pool.front = 0;
   pool.size = 0;
 
-  #pragma omp parallel for num_threads(deviceCount) shared(eachExploredTree, eachExploredSol, pool)
-  for (int gpuID = 0; gpuID < deviceCount; gpuID++) {
+  #pragma omp parallel for num_threads(D) shared(eachExploredTree, eachExploredSol, pool)
+  for (int gpuID = 0; gpuID < D; gpuID++) {
     cudaSetDevice(gpuID);
 
     unsigned long long int tree = 0, sol = 0;
@@ -321,12 +319,12 @@ void nqueens_search(const int N, const int G, const int m, const int M, const in
     initSinglePool(&pool_loc);
 
     for (int i = 0; i < c; i++) {
-      pool_loc.elements[i] = pool.elements[gpuID+f+i*deviceCount];
+      pool_loc.elements[i] = pool.elements[gpuID+f+i*D];
     }
     pool_loc.size += c;
-    if (gpuID == deviceCount-1) {
+    if (gpuID == D-1) {
       for (int i = c; i < l; i++) {
-        pool_loc.elements[i] = pool.elements[(deviceCount*c)+f+i-c];
+        pool_loc.elements[i] = pool.elements[(D*c)+f+i-c];
       }
       pool_loc.size += l-c;
     }
@@ -374,7 +372,7 @@ void nqueens_search(const int N, const int G, const int m, const int M, const in
 
     #pragma omp critical
     {
-      for (int p = 0; p < pool_loc.size; p++) {
+      for (int i = 0; i < pool_loc.size; i++) {
         int hasWork = 0;
         pushBack(&pool, popBack(&pool_loc, &hasWork));
         if (!hasWork) break;
@@ -389,7 +387,7 @@ void nqueens_search(const int N, const int G, const int m, const int M, const in
   endTime = omp_get_wtime();
   t = endTime - startTime;
 
-  for (int i = 0; i < deviceCount; i++) {
+  for (int i = 0; i < D; i++) {
     *exploredTree += eachExploredTree[i];
     *exploredSol += eachExploredSol[i];
   }
@@ -424,8 +422,8 @@ void nqueens_search(const int N, const int G, const int m, const int M, const in
 
 int main(int argc, char* argv[])
 {
-  int N, G, m, M, p;
-  parse_parameters(argc, argv, &N, &G, &m, &M, &p);
+  int N, G, m, M, D;
+  parse_parameters(argc, argv, &N, &G, &m, &M, &D);
   print_settings(N, G);
 
   unsigned long long int exploredTree = 0;
@@ -433,7 +431,7 @@ int main(int argc, char* argv[])
 
   double elapsedTime;
 
-  nqueens_search(N, G, m, M, p, &exploredTree, &exploredSol, &elapsedTime);
+  nqueens_search(N, G, m, M, D, &exploredTree, &exploredSol, &elapsedTime);
 
   print_results(exploredTree, exploredSol, elapsedTime);
 

@@ -6,7 +6,6 @@ use Time;
 use GpuDiagnostics;
 
 config const BLOCK_SIZE = 512;
-config const numGpus = 1;
 
 /*******************************************************************************
 Implementation of N-Queens Nodes.
@@ -102,10 +101,11 @@ config const N = 14;
 config const g = 1;
 config const m = 25;
 config const M = 50000;
+config const D = 1;
 
 proc check_parameters()
 {
-  if ((N <= 0) || (g <= 0) || (m <= 0) || (M <= 0)) {
+  if ((N <= 0) || (g <= 0) || (m <= 0) || (M <= 0) || (D <= 0)) {
     halt("All parameters must be positive integers.\n");
   }
 }
@@ -240,7 +240,7 @@ proc nqueens_search(ref exploredTree: uint, ref exploredSol: uint, ref elapsedTi
     a sufficiently large amount of work for GPU computation.
   */
   timer.start();
-  while (pool.size < numGpus*m) {
+  while (pool.size < D*m) {
     var hasWork = 0;
     var parent = pool.popFront(hasWork);
     if !hasWork then break;
@@ -259,28 +259,28 @@ proc nqueens_search(ref exploredTree: uint, ref exploredSol: uint, ref elapsedTi
     is not enough work.
   */
   timer.start();
-  var eachExploredTree, eachExploredSol: [0..#numGpus] uint;
+  var eachExploredTree, eachExploredSol: [0..#D] uint;
 
   const poolSize = pool.size;
-  const c = pool.size / numGpus;
-  const l = poolSize - (numGpus-1)*c;
+  const c = pool.size / D;
+  const l = poolSize - (D-1)*c;
   const f = pool.front;
   var lock: atomic bool;
 
   pool.front = 0;
   pool.size = 0;
 
-  coforall (gpuID, gpu) in zip(0..#numGpus, here.gpus) with (ref pool,
+  coforall (gpuID, gpu) in zip(0..#D, here.gpus) with (ref pool,
     ref eachExploredTree, ref eachExploredSol) {
 
     var tree, sol: uint;
     var pool_loc = new SinglePool();
 
     // each task gets its chunk
-    pool_loc.elements[0..#c] = pool.elements[gpuID+f.. by numGpus #c];
+    pool_loc.elements[0..#c] = pool.elements[gpuID+f.. by D #c];
     pool_loc.size += c;
-    if (gpuID == numGpus-1) {
-      pool_loc.elements[c..#(l-c)] = pool.elements[(numGpus*c)+f..#(l-c)];
+    if (gpuID == D-1) {
+      pool_loc.elements[c..#(l-c)] = pool.elements[(D*c)+f..#(l-c)];
       pool_loc.size += l-c;
     }
 
