@@ -290,16 +290,17 @@ void nqueens_search(const int N, const int G, const int m, const int M, const in
     decompose(N, G, parent, exploredTree, exploredSol, &pool);
   }
   endTime = omp_get_wtime();
-  double t = endTime - startTime;
+  double t1 = endTime - startTime;
   printf("\nInitial search on CPU completed\n");
   printf("Size of the explored tree: %llu\n", *exploredTree);
   printf("Number of explored solutions: %llu\n", *exploredSol);
-  printf("Elapsed time: %f [s]\n", t);
+  printf("Elapsed time: %f [s]\n", t1);
 
   /*
     Step 2: We continue the search on GPU in a depth-first manner, until there
     is not enough work.
   */
+  startTime = omp_get_wtime();
   unsigned long long int eachExploredTree[D], eachExploredSol[D];
 
   const int poolSize = pool.size;
@@ -385,7 +386,7 @@ void nqueens_search(const int N, const int G, const int m, const int M, const in
     deleteSinglePool(&pool_loc);
   }
   endTime = omp_get_wtime();
-  t = endTime - startTime;
+  double t2 = endTime - startTime;
 
   for (int i = 0; i < D; i++) {
     *exploredTree += eachExploredTree[i];
@@ -395,11 +396,12 @@ void nqueens_search(const int N, const int G, const int m, const int M, const in
   printf("\nSearch on GPU completed\n");
   printf("Size of the explored tree: %llu\n", *exploredTree);
   printf("Number of explored solutions: %llu\n", *exploredSol);
-  printf("Elapsed time: %f [s]\n", t);
+  printf("Elapsed time: %f [s]\n", t2);
 
   /*
     Step 3: We complete the depth-first search on CPU.
   */
+  startTime = omp_get_wtime();
   while (1) {
     int hasWork = 0;
     Node parent = popBack(&pool, &hasWork);
@@ -408,11 +410,12 @@ void nqueens_search(const int N, const int G, const int m, const int M, const in
     decompose(N, G, parent, exploredTree, exploredSol, &pool);
   }
   endTime = omp_get_wtime();
-  *elapsedTime = endTime - startTime;
+  double t3 = endTime - startTime;
+  *elapsedTime = t1 + t2 + t3;
   printf("\nSearch on CPU completed\n");
   printf("Size of the explored tree: %llu\n", *exploredTree);
   printf("Number of explored solutions: %llu\n", *exploredSol);
-  printf("Elapsed time: %f [s]\n", *elapsedTime - t);
+  printf("Elapsed time: %f [s]\n", t3);
 
   printf("\nExploration terminated.\n");
   printf("Cuda kernel calls: %d\n", count);
