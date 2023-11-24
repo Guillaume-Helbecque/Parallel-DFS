@@ -12,7 +12,7 @@ CUDA_COMMON_OPTS := $(C_COMMON_OPTS) -arch=sm_60
 HIP_COMMON_OPTS  := $(C_COMMON_OPTS) -offload-arch=gfx906
 
 # Source files
-CHPL_SOURCES := nqueens_chpl.chpl nqueens_unified_mem_chpl.chpl
+CHPL_SOURCES := nqueens_multigpu_chpl.chpl nqueens_unified_mem_chpl.chpl
 C_SOURCES    := nqueens_c.c
 CUDA_SOURCES := nqueens_cuda.cu nqueens_unified_mem_cuda.cu nqueens_multigpu_cuda.cu
 
@@ -36,6 +36,10 @@ all: $(CHPL_OBJECTS) $(C_OBJECTS) $(CUDA_OBJECTS) $(HIP_OBJECTS)
 # Pattern rule for CUDA source files
 %.o: %.cu
 	$(CUDA_COMPILER) $(CUDA_COMMON_OPTS) $< -o $@
+
+# Pattern rule for hybrid OpenMP+CUDA source files
+nqueens_multigpu_cuda.o: nqueens_multigpu_cuda.cu
+	$(CUDA_COMPILER) $(CUDA_COMMON_OPTS) -Xcompiler -fopenmp $< -o $@
 
 # Pattern rule for HIP source files
 %hip.o: %cuda.cu
