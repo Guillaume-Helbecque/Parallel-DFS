@@ -11,6 +11,8 @@ C_COMMON_OPTS    := -O3
 CUDA_COMMON_OPTS := $(C_COMMON_OPTS) -arch=sm_60
 HIP_COMMON_OPTS  := $(C_COMMON_OPTS) -offload-arch=gfx906
 
+HIP_PATCH_G5K    := DEVICE_LIB_PATH=/opt/rocm-4.5.0/amdgcn/bitcode/
+
 # Source files
 CHPL_SOURCES := nqueens_multigpu_chpl.chpl nqueens_unified_mem_chpl.chpl
 C_SOURCES    := nqueens_c.c
@@ -45,6 +47,11 @@ nqueens_multigpu_cuda.o: nqueens_multigpu_cuda.cu
 %hip.o: %cuda.cu
 	hipify-perl $< > $<.hip
 	$(HIP_COMPILER) $(HIP_COMMON_OPTS) $<.hip -o $@
+
+# Pattern rule for hybrid OpenMP+HIP source files
+nqueens_multigpu_hip.o: nqueens_multigpu_cuda.cu
+	hipify-perl $< > $<.hip
+	$(HIP_PATCH_G5K) $(HIP_COMPILER) $(HIP_COMMON_OPTS) -fopenmp $<.hip -o $@
 
 # Utilities
 .PHONY: clean
