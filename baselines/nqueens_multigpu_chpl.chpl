@@ -262,7 +262,7 @@ proc nqueens_search(ref exploredTree: uint, ref exploredSol: uint, ref elapsedTi
   var eachExploredTree, eachExploredSol: [0..#D] uint;
 
   const poolSize = pool.size;
-  const c = pool.size / D;
+  const c = poolSize / D;
   const l = poolSize - (D-1)*c;
   const f = pool.front;
   var lock: atomic bool;
@@ -317,7 +317,8 @@ proc nqueens_search(ref exploredTree: uint, ref exploredSol: uint, ref elapsedTi
     }
 
     if lock.compareAndSwap(false, true) {
-      for p in 0..#pool_loc.size {
+      const int poolLocSize = pool_loc.size;
+      for p in 0..#poolLocSize {
         var hasWork = 0;
         pool.pushBack(pool_loc.popBack(hasWork));
         if !hasWork then break;

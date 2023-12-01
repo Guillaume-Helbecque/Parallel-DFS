@@ -373,7 +373,8 @@ void nqueens_search(const int N, const int G, const int m, const int M, const in
 
     #pragma omp critical
     {
-      for (int i = 0; i < pool_loc.size; i++) {
+      const int poolLocSize = pool_loc.size;
+      for (int i = 0; i < poolLocSize; i++) {
         int hasWork = 0;
         pushBack(&pool, popBack(&pool_loc, &hasWork));
         if (!hasWork) break;
