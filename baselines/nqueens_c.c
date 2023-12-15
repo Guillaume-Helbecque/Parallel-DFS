@@ -15,7 +15,7 @@
 Implementation of N-Queens Nodes.
 *******************************************************************************/
 
-#define MAX_QUEENS 21
+#define MAX_QUEENS 20
 
 typedef struct
 {
@@ -80,7 +80,7 @@ void deleteSinglePool(SinglePool* pool)
 }
 
 /*******************************************************************************
-Implementation of the single-core single-GPU N-Queens search.
+Implementation of the sequential N-Queens search.
 *******************************************************************************/
 
 void parse_parameters(int argc, char* argv[], int* N, int* G, int* m, int* M)
@@ -138,7 +138,7 @@ void print_results(const unsigned long long int exploredTree,
   printf("=================================================\n");
 }
 
-void swap(uint8_t* a, uint8_t* b)
+inline void swap(uint8_t* a, uint8_t* b)
 {
   uint8_t tmp = *b;
   *b = *a;
@@ -185,7 +185,7 @@ void decompose(const int N, const int G, const Node parent,
   }
 }
 
-// Single-core single-GPU N-Queens search.
+// Sequential N-Queens search.
 void nqueens_search(const int N, const int G, const int m, const int M,
   unsigned long long int* exploredTree, unsigned long long int* exploredSol,
   double* elapsedTime)
@@ -198,8 +198,8 @@ void nqueens_search(const int N, const int G, const int m, const int M,
 
   pushBack(&pool, root);
 
-  int count = 0;
-  clock_t startTime = clock();
+  struct timespec start, end;
+  clock_gettime(CLOCK_MONOTONIC_RAW, &start);
 
   while (1) {
     int hasWork = 0;
@@ -208,9 +208,8 @@ void nqueens_search(const int N, const int G, const int m, const int M,
 
     decompose(N, G, parent, exploredTree, exploredSol, &pool);
   }
-
-  clock_t endTime = clock();
-  *elapsedTime = (double)(endTime - startTime) / CLOCKS_PER_SEC;
+  clock_gettime(CLOCK_MONOTONIC_RAW, &end);
+  *elapsedTime = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
 
   printf("\nExploration terminated.");
 
