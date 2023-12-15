@@ -11,7 +11,7 @@ config const BLOCK_SIZE = 512;
 Implementation of N-Queens Nodes.
 *******************************************************************************/
 
-config param MAX_QUEENS = 21;
+config param MAX_QUEENS = 20;
 
 record Node {
   var depth: uint(8);
@@ -94,7 +94,7 @@ record SinglePool {
 }
 
 /*******************************************************************************
-Implementation of the single-core single-GPU N-Queens search.
+Implementation of the multi-core multi-GPU N-Queens search.
 *******************************************************************************/
 
 config const N = 14;
@@ -224,7 +224,7 @@ proc generate_children(const ref parents: [] Node, const size: int, const ref ev
   }
 }
 
-// Single-core single-GPU N-Queens search.
+// Multi-core multi-GPU N-Queens search.
 proc nqueens_search(ref exploredTree: uint, ref exploredSol: uint, ref elapsedTime: real)
 {
   var root = new Node(N);
@@ -317,7 +317,7 @@ proc nqueens_search(ref exploredTree: uint, ref exploredSol: uint, ref elapsedTi
     }
 
     if lock.compareAndSwap(false, true) {
-      const int poolLocSize = pool_loc.size;
+      const poolLocSize = pool_loc.size;
       for p in 0..#poolLocSize {
         var hasWork = 0;
         pool.pushBack(pool_loc.popBack(hasWork));

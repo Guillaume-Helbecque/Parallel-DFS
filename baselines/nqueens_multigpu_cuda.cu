@@ -19,7 +19,7 @@
 Implementation of N-Queens Nodes.
 *******************************************************************************/
 
-#define MAX_QUEENS 21
+#define MAX_QUEENS 20
 
 typedef struct
 {
@@ -99,7 +99,7 @@ void deleteSinglePool(SinglePool* pool)
 }
 
 /*******************************************************************************
-Implementation of the single-core single-GPU N-Queens search.
+Implementation of the multi-core multi-GPU N-Queens search.
 *******************************************************************************/
 
 void parse_parameters(int argc, char* argv[], int* N, int* G, int* m, int* M, int* D)
@@ -161,7 +161,7 @@ void print_results(const unsigned long long int exploredTree,
   printf("=================================================\n");
 }
 
-void swap(uint8_t* a, uint8_t* b)
+inline void swap(uint8_t* a, uint8_t* b)
 {
   uint8_t tmp = *b;
   *b = *a;
@@ -261,7 +261,7 @@ void generate_children(const int N, const Node* parents, const int size, const u
   }
 }
 
-// Single-core single-GPU N-Queens search.
+// Multi-core multi-GPU N-Queens search.
 void nqueens_search(const int N, const int G, const int m, const int M, const int D,
   unsigned long long int* exploredTree, unsigned long long int* exploredSol,
   double* elapsedTime)
