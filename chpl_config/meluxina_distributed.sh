@@ -15,7 +15,7 @@ module load GCC/11.3.0
 module load CMake/3.23.1-GCCcore-11.3.0
 module load OpenMPI/4.1.4-GCC-11.3.0
 
-export CHPL_VERSION="1.32.0"
+export CHPL_VERSION="1.33.0"
 export CHPL_HOME="$PWD/chapel-${CHPL_VERSION}D"
 
 # Download Chapel if not found

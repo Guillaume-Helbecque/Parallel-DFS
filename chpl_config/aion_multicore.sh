@@ -12,7 +12,7 @@
 module load toolchain/foss/2020b
 module load devel/CMake
 
-export CHPL_VERSION="1.32.0"
+export CHPL_VERSION="1.33.0"
 export CHPL_HOME="$PWD/chapel-${CHPL_VERSION}MC"
 
 # Download Chapel if not found
