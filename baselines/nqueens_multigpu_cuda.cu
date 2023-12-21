@@ -330,11 +330,19 @@ void nqueens_search(const int N, const int G, const int m, const int M, const in
       pool_loc.size += l-c;
     }
 
+    Node* parents = (Node*)malloc(M * sizeof(Node));
+    uint8_t* evals = (uint8_t*)malloc(M*N * sizeof(uint8_t));
+
+    Node* parents_d;
+    uint8_t* evals_d;
+    cudaMalloc(&parents_d, M * sizeof(Node));
+    cudaMalloc(&evals_d, M*N * sizeof(uint8_t));
+
     while (1) {
       int poolSize = pool_loc.size;
       if (poolSize >= m) {
         poolSize = MIN(poolSize, M);
-        Node* parents = (Node*)malloc(poolSize * sizeof(Node));
+
         for (int i = 0; i < poolSize; i++) {
           int hasWork = 0;
           parents[i] = popBack(&pool_loc, &hasWork);
@@ -342,13 +350,7 @@ void nqueens_search(const int N, const int G, const int m, const int M, const in
         }
 
         const int evalsSize = N * poolSize;
-        uint8_t* evals = (uint8_t*)malloc(evalsSize * sizeof(uint8_t));
 
-        Node* parents_d;
-        uint8_t* evals_d;
-
-        cudaMalloc(&parents_d, poolSize * sizeof(Node));
-        cudaMalloc(&evals_d, evalsSize * sizeof(uint8_t));
         cudaMemcpy(parents_d, parents, poolSize * sizeof(Node), cudaMemcpyHostToDevice);
 
         const int nbBlocks = ceil((double)evalsSize / BLOCK_SIZE);
@@ -358,18 +360,18 @@ void nqueens_search(const int N, const int G, const int m, const int M, const in
         evaluate_gpu<<<nbBlocks, BLOCK_SIZE>>>(N, G, parents_d, evals_d, evalsSize);
         cudaMemcpy(evals, evals_d, evalsSize * sizeof(uint8_t), cudaMemcpyDeviceToHost);
 
-        cudaFree(parents_d);
-        cudaFree(evals_d);
-
         generate_children(N, parents, poolSize, evals, &tree, &sol, &pool_loc);
-
-        free(parents);
-        free(evals);
       }
       else {
         break;
       }
     }
+
+    cudaFree(parents_d);
+    cudaFree(evals_d);
+
+    free(parents);
+    free(evals);
 
     #pragma omp critical
     {

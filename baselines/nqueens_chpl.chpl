@@ -47,7 +47,6 @@ record SinglePool {
   var dom: domain(1);
   var elements: [dom] Node;
   var capacity: int;
-  var front: int;
   var size: int;
 
   proc init() {
@@ -56,12 +55,12 @@ record SinglePool {
   }
 
   proc ref pushBack(node: Node) {
-    if (this.front + this.size >= this.capacity) {
+    if (this.size >= this.capacity) {
       this.capacity *=2;
       this.dom = 0..#this.capacity;
     }
 
-    this.elements[this.front + this.size] = node;
+    this.elements[this.size] = node;
     this.size += 1;
   }
 
@@ -69,20 +68,7 @@ record SinglePool {
     if (this.size > 0) {
       hasWork = 1;
       this.size -= 1;
-      return this.elements[this.front + this.size];
-    }
-
-    var default: Node;
-    return default;
-  }
-
-  proc ref popFront(ref hasWork: int) {
-    if (this.size > 0) {
-      hasWork = 1;
-      const elt = this.elements[this.front];
-      this.front += 1;
-      this.size -= 1;
-      return elt;
+      return this.elements[this.size];
     }
 
     var default: Node;

@@ -18,7 +18,7 @@
 Implementation of N-Queens Nodes.
 *******************************************************************************/
 
-#define MAX_QUEENS 21
+#define MAX_QUEENS 20
 
 typedef struct
 {
@@ -254,6 +254,14 @@ void nqueens_search(const int N, const int G, const int m, const int M,
   int count = 0;
   clock_t startTime = clock();
 
+  Node* parents = (Node*)malloc(M * sizeof(Node));
+  uint8_t* evals = (uint8_t*)malloc(M*N * sizeof(uint8_t));
+
+  Node* parents_d;
+  uint8_t* evals_d;
+  cudaMalloc(&parents_d, M * sizeof(Node));
+  cudaMalloc(&evals_d, M*N * sizeof(uint8_t));
+
   while (1) {
     int hasWork = 0;
     Node parent = popBack(&pool, &hasWork);
@@ -265,7 +273,7 @@ void nqueens_search(const int N, const int G, const int m, const int M,
 
     // If 'poolSize' is sufficiently large, we offload the pool on GPU.
     if (poolSize >= m) {
-      Node* parents = (Node*)malloc(poolSize * sizeof(Node));
+
       for (int i = 0; i < poolSize; i++) {
         int hasWork = 0;
         parents[i] = popBack(&pool, &hasWork);
@@ -273,32 +281,25 @@ void nqueens_search(const int N, const int G, const int m, const int M,
       }
 
       const int evalsSize = N * poolSize;
-      uint8_t* evals = (uint8_t*)malloc(evalsSize * sizeof(uint8_t));
 
-      Node* parents_d;
-      uint8_t* evals_d;
-
-      cudaMalloc(&parents_d, poolSize * sizeof(Node));
-      cudaMalloc(&evals_d, evalsSize * sizeof(uint8_t));
       cudaMemcpy(parents_d, parents, poolSize * sizeof(Node), cudaMemcpyHostToDevice);
 
       const int nbBlocks = ceil((double)evalsSize / BLOCK_SIZE);
 
       count += 1;
       evaluate_gpu<<<nbBlocks, BLOCK_SIZE>>>(N, G, parents_d, evals_d, evalsSize);
-      cudaDeviceSynchronize();
 
       cudaMemcpy(evals, evals_d, evalsSize * sizeof(uint8_t), cudaMemcpyDeviceToHost);
 
-      cudaFree(parents_d);
-      cudaFree(evals_d);
-
       generate_children(N, parents, poolSize, evals, exploredTree, exploredSol, &pool);
-
-      free(parents);
-      free(evals);
     }
   }
+
+  cudaFree(parents_d);
+  cudaFree(evals_d);
+
+  free(parents);
+  free(evals);
 
   clock_t endTime = clock();
   *elapsedTime = (double)(endTime - startTime) / CLOCKS_PER_SEC;
