@@ -6,7 +6,7 @@
 use Time;
 use GpuDiagnostics;
 
-config const BLOCK_SIZE = 512;
+config param BLOCK_SIZE = 512;
 
 /*******************************************************************************
 Implementation of N-Queens Nodes.
