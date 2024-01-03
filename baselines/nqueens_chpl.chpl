@@ -115,10 +115,10 @@ proc isSafe(const board, const queen_num, const row_pos): uint(8)
 {
   var isSafe: uint(8) = 1;
 
-  for _g in 0..#g {
-    for i in 0..#queen_num {
-      const other_row_pos = board[i];
+  for i in 0..#queen_num {
+    const other_row_pos = board[i];
 
+    for _g in 0..#g {
       if (other_row_pos == row_pos - (queen_num - i) ||
           other_row_pos == row_pos + (queen_num - i)) {
         isSafe = 0;

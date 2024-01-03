@@ -5,7 +5,7 @@
 use Time;
 use GpuDiagnostics;
 
-config param BLOCK_SIZE = 512;
+config const BLOCK_SIZE = 512;
 
 /*******************************************************************************
 Implementation of N-Queens Nodes.
@@ -133,10 +133,10 @@ proc isSafe(const board, const queen_num, const row_pos): uint(8)
 {
   var isSafe: uint(8) = 1;
 
-  for _g in 0..#g {
-    for i in 0..#queen_num {
-      const other_row_pos = board[i];
+  for i in 0..#queen_num {
+    const other_row_pos = board[i];
 
+    for _g in 0..#g {
       if (other_row_pos == row_pos - (queen_num - i) ||
           other_row_pos == row_pos + (queen_num - i)) {
         isSafe = 0;
@@ -182,15 +182,16 @@ proc evaluate_gpu(const parents_d: [] Node, const size)
     const queen_num = parent.board[k];
 
     var isSafe: uint(8);
-
     // If child 'k' is not scheduled, we evaluate its safety 'G' times, otherwise 0.
     if (k >= depth) {
       isSafe = 1;
       /* const G_notScheduled = g * (k >= depth); */
-      for _g in 0..#g {//G_notScheduled {
-        for i in 0..#depth {
-          isSafe *= (parent.board[i] != queen_num - (depth - i) &&
-                     parent.board[i] != queen_num + (depth - i));
+      for i in 0..#depth {
+        const pbi = parent.board[i];
+
+        for _g in 0..#g {//G_notScheduled {
+          isSafe *= (pbi != queen_num - (depth - i) &&
+                     pbi != queen_num + (depth - i));
         }
       }
       evals[threadId] = isSafe;
